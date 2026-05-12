@@ -27,6 +27,14 @@ let package = Package(
         // a real on-device model. Run with:
         //   swift run -c release pfm-verify --model qwen3.5-0.8B
         .executable(name: "pfm-verify", targets: ["PFMVerify"]),
+
+        // Drop-in portability proof. The source files in this target are
+        // written exactly as if they imported Apple's `FoundationModels`
+        // framework; only the import line and a single-line backend install
+        // are different from the Apple equivalent. Compiles green = source
+        // compatibility holds.
+        //   swift run -c release pfm-portability
+        .executable(name: "pfm-portability", targets: ["PFMPortability"]),
     ],
     dependencies: [
         .package(url: "https://github.com/john-rocky/CoreML-LLM", from: "1.8.0"),
@@ -60,6 +68,16 @@ let package = Package(
         ),
         .executableTarget(
             name: "PFMVerify",
+            dependencies: [
+                "PrivateFoundationModels",
+                "PrivateFoundationModelsCoreML",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ]
+        ),
+        .executableTarget(
+            name: "PFMPortability",
             dependencies: [
                 "PrivateFoundationModels",
                 "PrivateFoundationModelsCoreML",

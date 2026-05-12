@@ -22,6 +22,8 @@ That's the same `LanguageModelSession.respond(to:)` shape Apple ships in iOS 26 
 
 **This is verified, not aspirational** — the full scenario matrix (load, respond, streamResponse, Generable, Tool calling, Transcript round-trip) ran green on an Apple M4 Max against the real model. See [`docs/VERIFICATION.md`](docs/VERIFICATION.md) for the captured log.
 
+**Drop-in source compatibility with Apple `FoundationModels`** — the same code that uses Apple's framework on iOS 26 compiles unchanged against `PrivateFoundationModels` on iOS 18. The only diff is the `import` line plus a one-line backend install at app startup. Eight Apple-FM-shaped call sites — single-turn / multi-turn / trailing-closure instructions / streaming / `GenerationOptions` / `Generable` / `Tool` / transcript Codable — run green end-to-end. See [`docs/PORTABILITY.md`](docs/PORTABILITY.md) for the exact diff and the runtime log.
+
 ---
 
 ## Why this exists

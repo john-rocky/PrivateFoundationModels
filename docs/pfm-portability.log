@@ -1,0 +1,28 @@
+
+──────────────────────────────────────────────────────────────────────────────
+ Apple FoundationModels portability test
+──────────────────────────────────────────────────────────────────────────────
+  • AppleFMCode.swift compiled — source compatibility holds
+  • runtime invocation: ENABLED
+[Load] LFM2 conv_state_in shape: [10, 1024, 3]
+
+──────────────────────────────────────────────────────────────────────────────
+ Running Apple FM-style call sites
+──────────────────────────────────────────────────────────────────────────────
+  ✓ 1. firstAnswer (basic single-turn)
+  ✓ 2. miniChat (closure-form instructions + multi-turn)
+  ✓ 3. streamSky (streamResponse, cumulative snapshots)
+  ✓ 4. deterministic (GenerationOptions)
+  ✓ 5. famousLandmark (Generable with includeSchemaInPrompt)
+  ✓ 6. researchAssistant (Tool call loop)
+  ✓ 7. saveAndRestoreSession (Transcript Codable round-trip)
+  ✓ 8. warmupAndCheck (prewarm + sync property access)
+
+──────────────────────────────────────────────────────────────────────────────
+ Summary
+──────────────────────────────────────────────────────────────────────────────
+  passed: 8
+  failed: 0
+
+  🎉 every Apple FM-shaped call site ran green.
+

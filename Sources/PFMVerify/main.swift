@@ -205,7 +205,7 @@ final class Verifier {
             }
         }
 
-        let transcript = await session.transcript
+        let transcript = session.transcript
         if transcript.entries.count >= 1 + prompts.count * 2 {
             await counter.pass()
             ok("transcript contains instructions + \(prompts.count) prompts + \(prompts.count) responses (\(transcript.entries.count) entries)")
@@ -371,7 +371,7 @@ final class Verifier {
             let dt = ContinuousClock.now - start
             ok("final (\(ms(dt))): \(quoted(response.content))")
 
-            let transcript = await session.transcript
+            let transcript = session.transcript
             let kinds = transcript.entries.map(\.kind)
             let invokedTool = kinds.contains(.toolCall) && kinds.contains(.toolOutput)
             if invokedTool {
@@ -406,7 +406,7 @@ final class Verifier {
             return
         }
 
-        let original = await session.transcript
+        let original = session.transcript
         do {
             let data = try original.serialized()
             info("serialized: \(data.count) bytes")

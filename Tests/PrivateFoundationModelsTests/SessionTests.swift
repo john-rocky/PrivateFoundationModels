@@ -15,7 +15,7 @@ struct SessionTests {
         let reply = try await session.respond(to: "Hi")
         #expect(reply.content == "Hello!")
 
-        let transcript = await session.transcript
+        let transcript = session.transcript
         #expect(transcript.entries.count == 3) // instructions, prompt, response
         #expect(transcript.entries[0].kind == .instructions)
         #expect(transcript.entries[1].kind == .prompt)
@@ -116,7 +116,7 @@ struct SessionTests {
         let final = try await stream.collect()
         #expect(final.content == "Hello world!")
 
-        let transcript = await session.transcript
+        let transcript = session.transcript
         #expect(transcript.entries.last?.content == "Hello world!")
     }
 
@@ -157,7 +157,7 @@ struct SessionTests {
         let reply = try await session.respond(to: "Use the tool.")
         #expect(reply.content == "done")
 
-        let transcript = await session.transcript
+        let transcript = session.transcript
         let kinds = transcript.entries.map(\.kind)
         #expect(kinds == [.prompt, .toolCall, .toolOutput, .response])
         #expect(transcript.entries[1].toolName == "echo")
@@ -194,7 +194,7 @@ struct SessionTests {
 
         _ = try await session.respond(to: "Again?")
 
-        let updated = await session.transcript
+        let updated = session.transcript
         #expect(updated.entries.count == 5)
         #expect(updated.entries[3].content == "Again?")
         #expect(updated.entries[4].content == "Sure")

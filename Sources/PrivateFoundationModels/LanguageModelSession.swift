@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// A stateful conversation with a language model. Mirrors
 /// `FoundationModels.LanguageModelSession`.
@@ -23,20 +24,22 @@ public final class LanguageModelSession: @unchecked Sendable {
     /// without tools.
     public let tools: [AnyTool]
 
-    /// Internal actor that guards the transcript and the `isResponding` flag.
+    /// Lock-guarded mutable state. Apple's framework exposes `transcript` and
+    /// `isResponding` as plain (synchronous) properties, so we cannot park
+    /// them behind an actor.
     private let state: SessionState
 
     /// Snapshot of the conversation so far. Updated after every successful
-    /// `respond` / `streamResponse` call. Reads are cheap (actor hop), so
-    /// it's fine to bind directly to this from SwiftUI.
+    /// `respond` / `streamResponse` call. Reads are cheap (one lock acquire),
+    /// so it's fine to bind directly to this from SwiftUI.
     public var transcript: Transcript {
-        get async { await state.snapshot() }
+        state.snapshot()
     }
 
     /// `true` while a `respond` or `streamResponse` call is in flight.
     /// Calling either while this is `true` throws `.concurrentRequests`.
     public var isResponding: Bool {
-        get async { await state.isResponding }
+        state.isResponding
     }
 
     // MARK: - Initializers
@@ -60,11 +63,25 @@ public final class LanguageModelSession: @unchecked Sendable {
     /// Each element is erased to `AnyTool` internally.
     public convenience init(
         model: SystemLanguageModel = .default,
-        tools: [any Tool],
+        tools: [any Tool] = [],
         instructions: Instructions? = nil
     ) {
         let erased = tools.map { AnyTool.erased($0) }
-        self.init(model: model, instructions: instructions, tools: erased)
+        self.init(model: model, instructions: erased.isEmpty ? instructions : instructions, tools: erased)
+    }
+
+    /// Closure-form instructions, matching Apple's trailing-closure
+    /// `LanguageModelSession { "Be brief." }` style. Apple uses an
+    /// `@InstructionsBuilder` result builder; for source-compatibility we
+    /// accept a plain `() -> Instructions` closure, which is what most
+    /// real-world call sites end up looking like.
+    public convenience init(
+        model: SystemLanguageModel = .default,
+        tools: [any Tool] = [],
+        @InstructionsBuilder instructions: () -> Instructions
+    ) {
+        let erased = tools.map { AnyTool.erased($0) }
+        self.init(model: model, instructions: instructions(), tools: erased)
     }
 
     /// Designated initializer (instructions form).
@@ -99,8 +116,11 @@ public final class LanguageModelSession: @unchecked Sendable {
 
     /// Hint to the backend that this session will issue a request soon. Lets
     /// the ANE / GPU spin up early and (on chunked models) page weights in.
-    /// Safe to call multiple times.
-    public func prewarm() {
+    /// Safe to call multiple times. `promptPrefix` matches Apple's
+    /// signature; backends that don't differentiate prefixes simply ignore
+    /// it.
+    public func prewarm(promptPrefix: String? = nil) {
+        _ = promptPrefix
         Task.detached { [model] in
             await model.backend.prewarm()
         }
@@ -125,13 +145,20 @@ public final class LanguageModelSession: @unchecked Sendable {
     /// gets the type's `generationSchema` and is responsible for emitting
     /// output that parses into `T`. If parsing fails, throws
     /// `.decodingFailure(rawText)`.
+    ///
+    /// `includeSchemaInPrompt` controls whether the backend renders the
+    /// schema into the system prompt. Set `false` when you've already
+    /// described the structure to the model via `instructions` and want to
+    /// save context budget. Mirrors Apple's parameter shape.
     @discardableResult
     public func respond<T: Generable>(
         to prompt: String,
         generating type: T.Type = T.self,
+        includeSchemaInPrompt: Bool = true,
         options: GenerationOptions = GenerationOptions()
     ) async throws -> Response<T> {
-        let raw = try await runRespondString(prompt: prompt, options: options, schema: T.generationSchema)
+        let schema: GenerationSchema? = includeSchemaInPrompt ? T.generationSchema : nil
+        let raw = try await runRespondString(prompt: prompt, options: options, schema: schema)
         do {
             let decoded = try JSONDecoder().decode(T.self, from: Data(raw.content.utf8))
             return Response(content: decoded, transcriptEntries: raw.transcriptEntries)
@@ -161,9 +188,11 @@ public final class LanguageModelSession: @unchecked Sendable {
     public func streamResponse<T: Generable>(
         to prompt: String,
         generating type: T.Type = T.self,
+        includeSchemaInPrompt: Bool = true,
         options: GenerationOptions = GenerationOptions()
     ) -> ResponseStream<T> {
-        runStreamGenerable(prompt: prompt, options: options, type: type)
+        let schema: GenerationSchema? = includeSchemaInPrompt ? T.generationSchema : nil
+        return runStreamGenerable(prompt: prompt, options: options, schema: schema, type: type)
     }
 
     // MARK: - Internals
@@ -173,10 +202,10 @@ public final class LanguageModelSession: @unchecked Sendable {
         options: GenerationOptions,
         schema: GenerationSchema?
     ) async throws -> Response<String> {
-        try await state.beginRequest()
+        try state.beginRequest()
         do {
             let promptEntry = Transcript.Entry(kind: .prompt, content: prompt)
-            try await state.append([promptEntry])
+            state.append([promptEntry])
 
             var newEntries: [Transcript.Entry] = [promptEntry]
             var iterationsLeft = 8 // hard cap on tool-call loops per call
@@ -184,7 +213,7 @@ public final class LanguageModelSession: @unchecked Sendable {
             while iterationsLeft > 0 {
                 iterationsLeft -= 1
 
-                let current = await state.snapshot()
+                let current = state.snapshot()
                 let result: BackendGeneration
                 do {
                     result = try await model.backend.generate(
@@ -194,13 +223,13 @@ public final class LanguageModelSession: @unchecked Sendable {
                         tools: tools
                     )
                 } catch let error as GenerationError {
-                    await state.endRequest()
+                    state.endRequest()
                     throw error
                 } catch is CancellationError {
-                    await state.endRequest()
+                    state.endRequest()
                     throw GenerationError.cancelled
                 } catch {
-                    await state.endRequest()
+                    state.endRequest()
                     throw GenerationError.backend(error)
                 }
 
@@ -209,28 +238,28 @@ public final class LanguageModelSession: @unchecked Sendable {
                 // behavior).
                 if !result.toolCalls.isEmpty {
                     let toolEntries = try await invokeTools(result.toolCalls)
-                    try await state.append(toolEntries)
+                    state.append(toolEntries)
                     newEntries.append(contentsOf: toolEntries)
                     continue
                 }
 
                 if let text = result.text {
                     let responseEntry = Transcript.Entry(kind: .response, content: text)
-                    try await state.append([responseEntry])
+                    state.append([responseEntry])
                     newEntries.append(responseEntry)
-                    await state.endRequest()
+                    state.endRequest()
                     return Response(content: text, transcriptEntries: newEntries)
                 }
 
                 // Backend returned neither text nor tool calls. Treat as refusal.
-                await state.endRequest()
+                state.endRequest()
                 throw GenerationError.refusal("backend returned an empty response")
             }
 
-            await state.endRequest()
+            state.endRequest()
             throw GenerationError.refusal("exceeded maximum tool-call iterations (8)")
         } catch {
-            await state.endRequest()
+            state.endRequest()
             throw error
         }
     }
@@ -246,17 +275,17 @@ public final class LanguageModelSession: @unchecked Sendable {
 
         let task = Task { [model, state, tools] in
             do {
-                try await state.beginRequest()
+                try state.beginRequest()
 
                 let promptEntry = Transcript.Entry(kind: .prompt, content: prompt)
-                try await state.append([promptEntry])
+                state.append([promptEntry])
                 finalEntries.append(promptEntry)
 
                 var iterationsLeft = 8
 
                 while iterationsLeft > 0 {
                     iterationsLeft -= 1
-                    let current = await state.snapshot()
+                    let current = state.snapshot()
                     let inner = model.backend.streamGenerate(
                         transcript: current,
                         options: options,
@@ -274,7 +303,7 @@ public final class LanguageModelSession: @unchecked Sendable {
                                 continuation.yield(.init(content: cumulative))
                                 if complete {
                                     let responseEntry = Transcript.Entry(kind: .response, content: cumulative)
-                                    try await state.append([responseEntry])
+                                    state.append([responseEntry])
                                     finalEntries.append(responseEntry)
                                     finalText.set(cumulative)
                                 }
@@ -292,7 +321,7 @@ public final class LanguageModelSession: @unchecked Sendable {
 
                     if let call = pendingToolCall {
                         let entries = try await invokeTools([call])
-                        try await state.append(entries)
+                        state.append(entries)
                         for e in entries { finalEntries.append(e) }
                         continue
                     }
@@ -300,7 +329,7 @@ public final class LanguageModelSession: @unchecked Sendable {
                     if finalText.get() == nil && !lastCumulative.isEmpty {
                         // Backend didn't flag `complete:true` but emitted text — be liberal.
                         let responseEntry = Transcript.Entry(kind: .response, content: lastCumulative)
-                        try await state.append([responseEntry])
+                        state.append([responseEntry])
                         finalEntries.append(responseEntry)
                         finalText.set(lastCumulative)
                     }
@@ -309,10 +338,10 @@ public final class LanguageModelSession: @unchecked Sendable {
                 }
 
                 continuation.finish()
-                await state.endRequest()
+                state.endRequest()
             } catch {
                 continuation.finish(throwing: error)
-                await state.endRequest()
+                state.endRequest()
             }
         }
 
@@ -331,9 +360,10 @@ public final class LanguageModelSession: @unchecked Sendable {
     private func runStreamGenerable<T: Generable>(
         prompt: String,
         options: GenerationOptions,
+        schema: GenerationSchema?,
         type: T.Type
     ) -> ResponseStream<T> {
-        let upstream = runStreamString(prompt: prompt, options: options, schema: T.generationSchema)
+        let upstream = runStreamString(prompt: prompt, options: options, schema: schema)
 
         let (stream, continuation) = AsyncThrowingStream<ResponseStream<T>.Snapshot, Error>.makeStream()
         let finalContent = LockedValue<T>()
@@ -405,27 +435,36 @@ public final class LanguageModelSession: @unchecked Sendable {
 
 // MARK: - Internal state guard
 
-private actor SessionState {
-    private(set) var transcript: Transcript
-    private(set) var isResponding: Bool = false
+/// Mutex-protected mutable state for a session. Apple's framework exposes
+/// `transcript` and `isResponding` as synchronous properties so we cannot
+/// guard them with an actor.
+private final class SessionState: @unchecked Sendable {
+    private struct Storage {
+        var transcript: Transcript
+        var isResponding: Bool = false
+    }
+    private let storage: Mutex<Storage>
 
     init(transcript: Transcript) {
-        self.transcript = transcript
+        self.storage = Mutex(Storage(transcript: transcript))
     }
 
-    func snapshot() -> Transcript { transcript }
+    func snapshot() -> Transcript { storage.withLock { $0.transcript } }
+    var isResponding: Bool { storage.withLock { $0.isResponding } }
 
-    func append(_ entries: [Transcript.Entry]) throws {
-        transcript.entries.append(contentsOf: entries)
+    func append(_ entries: [Transcript.Entry]) {
+        storage.withLock { $0.transcript.entries.append(contentsOf: entries) }
     }
 
     func beginRequest() throws {
-        if isResponding { throw GenerationError.concurrentRequests }
-        isResponding = true
+        try storage.withLock { state in
+            if state.isResponding { throw GenerationError.concurrentRequests }
+            state.isResponding = true
+        }
     }
 
     func endRequest() {
-        isResponding = false
+        storage.withLock { $0.isResponding = false }
     }
 }
 
