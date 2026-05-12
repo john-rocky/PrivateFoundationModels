@@ -159,8 +159,12 @@ public final class LanguageModelSession: @unchecked Sendable {
     ) async throws -> Response<T> {
         let schema: GenerationSchema? = includeSchemaInPrompt ? T.generationSchema : nil
         let raw = try await runRespondString(prompt: prompt, options: options, schema: schema)
+        // Try the raw response first, then fall back to JSON extraction
+        // (strip code fences, balanced-object scan). Some backends already
+        // clean their output; some don't.
+        let candidate = JSONExtraction.extractObject(raw.content) ?? raw.content
         do {
-            let decoded = try JSONDecoder().decode(T.self, from: Data(raw.content.utf8))
+            let decoded = try JSONDecoder().decode(T.self, from: Data(candidate.utf8))
             return Response(content: decoded, transcriptEntries: raw.transcriptEntries)
         } catch {
             throw GenerationError.decodingFailure(raw.content)
@@ -373,21 +377,38 @@ public final class LanguageModelSession: @unchecked Sendable {
                 for try await snapshot in upstream {
                     // Partial JSON may be invalid mid-stream; only emit a
                     // snapshot when the prefix parses. The final emission
-                    // is always validated below.
-                    if let decoded = try? JSONDecoder().decode(T.self, from: Data(snapshot.content.utf8)) {
+                    // is always validated below. Try the raw bytes first,
+                    // then fall back to a balanced-object extraction so
+                    // models that wrap output in code fences (```json ... ```)
+                    // still produce snapshots once the closing brace lands.
+                    let candidate = JSONExtraction.extractObject(snapshot.content) ?? snapshot.content
+                    if let decoded = try? JSONDecoder().decode(T.self, from: Data(candidate.utf8)) {
                         continuation.yield(.init(content: decoded))
                         finalContent.set(decoded)
                     }
                 }
                 if finalContent.get() == nil {
                     // Stream ended without a parseable snapshot. Try the
-                    // upstream's accumulated text via `collect()`.
+                    // upstream's accumulated text via `collect()`, with the
+                    // same code-fence-tolerant extraction. Any decode
+                    // failure here is wrapped as `GenerationError.decodingFailure`
+                    // so callers see a consistent error surface — matching
+                    // the non-streaming `respond(to:generating:)` path.
                     let response = try await upstream.collect()
-                    let decoded = try JSONDecoder().decode(T.self, from: Data(response.content.utf8))
-                    continuation.yield(.init(content: decoded))
-                    finalContent.set(decoded)
+                    let candidate = JSONExtraction.extractObject(response.content) ?? response.content
+                    do {
+                        let decoded = try JSONDecoder().decode(T.self, from: Data(candidate.utf8))
+                        continuation.yield(.init(content: decoded))
+                        finalContent.set(decoded)
+                    } catch {
+                        throw GenerationError.decodingFailure(response.content)
+                    }
                 }
                 continuation.finish()
+            } catch let error as GenerationError {
+                continuation.finish(throwing: error)
+            } catch is DecodingError {
+                continuation.finish(throwing: GenerationError.decodingFailure("stream produced unparseable JSON"))
             } catch {
                 continuation.finish(throwing: error)
             }

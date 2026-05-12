@@ -35,6 +35,15 @@ let package = Package(
         // compatibility holds.
         //   swift run -c release pfm-portability
         .executable(name: "pfm-portability", targets: ["PFMPortability"]),
+
+        // Deep end-to-end exercise of every Generable shape and Tool pattern
+        // (nested objects, arrays, primitives mix, optionals, streaming
+        // Generable, multi-tool dispatch, complex tool arguments, throwing
+        // tool, multi-step tool chain) against a real on-device model. Per-
+        // scenario pass/fail is honest: small models may fail content-level
+        // checks even when the API surface works.
+        //   swift run -c release pfm-deep
+        .executable(name: "pfm-deep", targets: ["PFMDeep"]),
     ],
     dependencies: [
         .package(url: "https://github.com/john-rocky/CoreML-LLM", from: "1.8.0"),
@@ -78,6 +87,16 @@ let package = Package(
         ),
         .executableTarget(
             name: "PFMPortability",
+            dependencies: [
+                "PrivateFoundationModels",
+                "PrivateFoundationModelsCoreML",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ]
+        ),
+        .executableTarget(
+            name: "PFMDeep",
             dependencies: [
                 "PrivateFoundationModels",
                 "PrivateFoundationModelsCoreML",

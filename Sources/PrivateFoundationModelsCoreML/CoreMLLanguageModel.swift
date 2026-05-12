@@ -341,51 +341,15 @@ public final class CoreMLBackendImpl: LanguageModelBackend, @unchecked Sendable 
         return BackendGeneration(text: trimmed)
     }
 
-    /// Return the substring of `text` between the first `{` and the matching
-    /// `}` that balances it (depth-counting, string-aware). Returns nil if
-    /// no balanced object is present.
+    /// Delegate to the shared `JSONExtraction.firstBalancedObject` helper.
+    /// Kept under the original name so existing call sites in this file
+    /// don't need to change.
     static func extractJSONObject(_ text: String) -> String? {
-        guard let start = text.firstIndex(of: "{") else { return nil }
-        var depth = 0
-        var inString = false
-        var escape = false
-        var idx = start
-        while idx < text.endIndex {
-            let ch = text[idx]
-            if escape {
-                escape = false
-            } else if ch == "\\" && inString {
-                escape = true
-            } else if ch == "\"" {
-                inString.toggle()
-            } else if !inString {
-                if ch == "{" {
-                    depth += 1
-                } else if ch == "}" {
-                    depth -= 1
-                    if depth == 0 {
-                        return String(text[start...idx])
-                    }
-                }
-            }
-            idx = text.index(after: idx)
-        }
-        return nil
+        JSONExtraction.firstBalancedObject(in: text)
     }
 
     static func stripCodeFence(_ s: String) -> String {
-        var t = s.trimmingCharacters(in: .whitespacesAndNewlines)
-        if t.hasPrefix("```") {
-            // remove leading ``` plus optional language tag and trailing ```
-            if let firstNewline = t.firstIndex(of: "\n") {
-                t = String(t[t.index(after: firstNewline)...])
-            }
-            if t.hasSuffix("```") {
-                t = String(t.dropLast(3))
-            }
-            t = t.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return t
+        JSONExtraction.stripCodeFence(s)
     }
 }
 

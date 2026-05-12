@@ -1,0 +1,80 @@
+
+──────────────────────────────────────────────────────────────────────────────
+ PrivateFoundationModels deep verification
+──────────────────────────────────────────────────────────────────────────────
+  model:          lfm2.5-350m
+  date:           2026-05-12 19:52:03 +0000
+  • Reading config...
+  • Loading tokenizer...
+  • Loading model...
+[Load] LFM2 conv_state_in shape: [10, 1024, 3]
+  • Ready
+
+──────────────────────────────────────────────────────────────────────────────
+ Generable scenarios (structured output)
+──────────────────────────────────────────────────────────────────────────────
+  • G1. simple-object (3 strings) — prompt: Pick one famous landmark and return its city and country.
+  ✓ G1. simple-object (3 strings) → city=Eiffel Tower country=France (2042 ms)
+  • G2. mixed-primitives (string + int? no — number + bool) — prompt: Invent a sensor reading. Pick a short name, a numeric value, and an active boolean.
+  ✓ G2. mixed-primitives (string + int? no — number + bool) → name=temperature value=25.0 active=true (3553 ms)
+  • G3. array-of-strings (3-5 items) — prompt: Make a shopping list with a name and 3 items.
+  ✓ G3. array-of-strings (3-5 items) → name=Organic Fresh Produce items=["organic apples", "fresh berries", "organic spinach"] (4603 ms)
+  • G4. nested-object (2 levels) — prompt: Invent a person profile with a name, age, and address (city, country).
+  ✓ G4. nested-object (2 levels) → Liam Carter, age 30, New York, USA (4339 ms)
+  • G5. optional-fields (absent OK) — prompt: Make up a one-line article. Title only, no summary.
+  ⚠ G5. optional-fields (absent OK) — model emitted unparseable output (model-quality, not framework). raw="Renewable energy sources are becoming increasingly cost-effective."
+  • G6. streaming-generable (Profile) — prompt: Invent a person profile. Name, age, city, country.
+  ⚠ G6. streaming-generable (Profile) — model emitted no parseable snapshot (model-quality)
+
+──────────────────────────────────────────────────────────────────────────────
+ Tool calling scenarios
+──────────────────────────────────────────────────────────────────────────────
+  • T1. single-tool (add) — prompt: What is 17 plus 25? You MUST use the add tool.
+  ✓ T1. single-tool (add) → tool used (add) (6807 ms)
+  •   last tool output: 42
+  •   final assistant: 17 plus 25 equals 42.
+  • T2. multi-tool, picks add — prompt: Use a tool to compute 7 + 3.
+  ✓ T2. multi-tool, picks add → tool used (add) (8786 ms)
+  •   last tool output: 10
+  •   final assistant: 7 + 3 = 10
+  • T3. multi-tool, picks multiply — prompt: Use a tool to compute 6 times 7.
+  ⚠ T3. multi-tool, picks multiply — model answered without invoking the expected tool (model-quality)
+  • T4. complex-arguments (lookup topic+limit) — prompt: Use the lookup tool to get 3 facts about Swift concurrency.
+  ⚠ T4. complex-arguments (lookup topic+limit) — model answered without invoking the expected tool (model-quality)
+  • T5. throwing-tool surfaces error — prompt: Use the boom tool with key=foo.
+  ✓ T5. throwing-tool surfaces error → caught Boom from tool via GenerationError.backend
+
+──────────────────────────────────────────────────────────────────────────────
+ Summary
+──────────────────────────────────────────────────────────────────────────────
+  PASS  (API works + content correct):       7
+  MODEL (API works, content model-limited): 4
+  FAIL  (framework / backend regression):    0
+
+  PASS   G1. simple-object (3 strings)
+        city=Eiffel Tower country=France
+  PASS   G2. mixed-primitives (string + int? no — number + bool)
+        name=temperature value=25.0 active=true
+  PASS   G3. array-of-strings (3-5 items)
+        name=Organic Fresh Produce items=["organic apples", "fresh berries", "organic spinach"]
+  PASS   G4. nested-object (2 levels)
+        Liam Carter, age 30, New York, USA
+  MODEL  G5. optional-fields (absent OK)
+        decodingFailure on "Renewable energy sources are becoming increasingly cost-effective."
+  MODEL  G6. streaming-generable (Profile)
+        no parseable snapshot
+  PASS   T1. single-tool (add)
+        calls=add final=17 plus 25 equals 42.
+  PASS   T2. multi-tool, picks add
+        calls=add final=7 + 3 = 10
+  MODEL  T3. multi-tool, picks multiply
+        kinds=[PrivateFoundationModels.Transcript.Entry.Kind.instructions, PrivateFoundationModels.Transcript.Entry.Kind.prompt, PrivateFoundationModels.Transcript.Entry.Kind.response] final=TOOL_CALL: multiply
+SINGLE-LINE-JSON-ARG: "6*7"
+  MODEL  T4. complex-arguments (lookup topic+limit)
+        kinds=[PrivateFoundationModels.Transcript.Entry.Kind.instructions, PrivateFoundationModels.Transcript.Entry.Kind.prompt, PrivateFoundationModels.Transcript.Entry.Kind.response] final=```json
+{
+  "TOOL_CALL": "lookup",
+  "single-line_json_arguments": {
+    "topic"
+  PASS   T5. throwing-tool surfaces error
+        Boom surfaced
