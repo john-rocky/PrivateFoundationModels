@@ -6,6 +6,41 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-05-13
+
+### Added
+- `@Generable` macro (member + extension attached) that walks a struct's
+  stored properties and synthesizes `static var generationSchema`. Drop-in
+  shape with Apple's `FoundationModels.Generable` macro: supports
+  primitives, optional fields (which drop out of `required`), `[T]` arrays,
+  nested `@Generable` types, and macro-level `description:` argument.
+- `@Guide(description:)` peer attribute for per-field schema descriptions.
+- `HFFetcher`: a foreground-`URLSession` HuggingFace tree mirror used by
+  `CoreMLLanguageModel.load(...)` so the first call downloads on its own
+  from any plain-process context (CLI, Xcode Preview, unit tests).
+  CoreML-LLM upstream's background-`URLSession` downloader is bypassed.
+- `CoreMLLanguageModel.load(_:cacheDirectory:hfToken:onProgress:)` with
+  new parameters for custom cache root and gated-repo authentication.
+- `defaultCacheDirectory(for:)` static helper exposing the cache root.
+- New `PFMMacros` macro target backed by `swift-syntax 600.0`.
+- 11 new tests (`GenerableMacroTests`) covering primitive / optional /
+  array / nested / `@Guide` / macro-description / end-to-end paths.
+
+### Changed
+- `PFMPortability/AppleFMCode.swift` now uses `@Generable` and
+  `@Guide(description:)` — the portability proof's structured-output
+  fixture is now byte-identical to canonical Apple FM sample code.
+- README documents `@Generable` as the recommended path; manual
+  `generationSchema` is now an opt-out.
+
+### Fixed
+- Streaming `Generable` decode path now strips Markdown code fences
+  through the shared `JSONExtraction` helper, matching the non-streaming
+  path. (First surfaced in `pfm-deep`.)
+- Streaming `Generable` decode now wraps `Swift.DecodingError` as
+  `GenerationError.decodingFailure` — consistent error surface with
+  `respond(to:generating:)`.
+
 ## [0.1.0] — 2026-05-13
 
 Initial release.

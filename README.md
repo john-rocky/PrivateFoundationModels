@@ -121,22 +121,12 @@ let final = try await stream.collect()
 ### Structured output
 
 ```swift
-struct CityReport: Generable {
+@Generable
+struct CityReport {
+    @Guide(description: "City name")
     let city: String
     let temperatureCelsius: Double
     let conditions: String
-
-    static var generationSchema: GenerationSchema {
-        GenerationSchema(
-            type: "object",
-            properties: [
-                "city":                .init(type: "string"),
-                "temperatureCelsius":  .init(type: "number"),
-                "conditions":          .init(type: "string"),
-            ],
-            required: ["city", "temperatureCelsius", "conditions"]
-        )
-    }
 }
 
 let report = try await session.respond(
@@ -145,6 +135,8 @@ let report = try await session.respond(
 )
 print(report.content.temperatureCelsius)
 ```
+
+`@Generable` is the same macro shape Apple ships in `FoundationModels` — it walks stored properties, picks a JSON-Schema type per field, drops `Optional` fields out of `required`, and recurses into nested `@Generable` types. `@Guide(description:)` is also supported. If you prefer to write the schema by hand (no macro), conform to `Generable` and supply `static var generationSchema` directly.
 
 ### Tools
 
@@ -270,8 +262,9 @@ This package mirrors the public API surface of `FoundationModels` (iOS 26+) as o
 
 Things Apple's `FoundationModels` ships that we do **not** ship today, and explicitly do not promise:
 
-- `@Generable` macro for auto-deriving `generationSchema` from a struct's stored properties. Conform manually for now; macro support is on the roadmap.
-- `Instructions(@InstructionsBuilder ...)` builder syntax. Use the plain string initializer.
+- `Prompt` value type and the `respond(options:prompt:)` / `streamResponse(options:prompt:)` overloads that take it — v0.2.
+- `Guardrails` (silent no-op accept-all today) — v0.2.
+- `logFeedbackAttachment(...)` — v0.2+.
 - Apple Intelligence-specific behavior (rewriting in Mail, image playgrounds). Those are app-level features, not framework surface.
 
 If you find a method or initializer in Apple's docs that PFM doesn't ship, please open an issue.

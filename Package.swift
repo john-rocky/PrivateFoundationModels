@@ -1,4 +1,5 @@
 // swift-tools-version: 6.0
+import CompilerPluginSupport
 import PackageDescription
 
 let package = Package(
@@ -47,11 +48,23 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/john-rocky/CoreML-LLM", from: "1.8.0"),
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
     ],
     targets: [
+        .macro(
+            name: "PFMMacros",
+            dependencies: [
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+                .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ]
+        ),
         .target(
             name: "PrivateFoundationModels",
-            dependencies: [],
+            dependencies: ["PFMMacros"],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
             ]

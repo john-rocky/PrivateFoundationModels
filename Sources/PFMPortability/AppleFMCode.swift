@@ -75,22 +75,11 @@ public func deterministic() async throws -> String {
 
 // MARK: - 5. Structured output via Generable
 
-public struct LandmarkFact: Generable, Sendable {
+@Generable
+public struct LandmarkFact: Sendable {
     public let landmark: String
     public let country: String
     public let famousFor: String
-
-    public static var generationSchema: GenerationSchema {
-        GenerationSchema(
-            type: "object",
-            properties: [
-                "landmark":  .init(type: "string"),
-                "country":   .init(type: "string"),
-                "famousFor": .init(type: "string"),
-            ],
-            required: ["landmark", "country", "famousFor"]
-        )
-    }
 }
 
 public func famousLandmark() async throws -> LandmarkFact {
@@ -108,15 +97,10 @@ public func famousLandmark() async throws -> LandmarkFact {
 // MARK: - 6. Tools
 
 public struct LookupTool: Tool {
-    public struct Arguments: Generable {
+    @Generable
+    public struct Arguments: Sendable {
+        @Guide(description: "Topic name to look up")
         public let topic: String
-        public static var generationSchema: GenerationSchema {
-            GenerationSchema(
-                type: "object",
-                properties: ["topic": .init(type: "string")],
-                required: ["topic"]
-            )
-        }
     }
 
     public let name = "lookup"
