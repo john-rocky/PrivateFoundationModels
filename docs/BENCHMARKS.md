@@ -14,7 +14,10 @@ Same prompt, same options, three iterations per backend, median reported. Genera
 |---|---|---|---|---|---|---|
 | Apple FM (native) | Apple's 3 B on-device LLM | **0 ms** | 297 ms | 582 ms | 147 | 252.7 chars/sec |
 | CoreML / ANE | LFM2.5-350M | 8235 ms | 533 ms | 648 ms | 25 | 38.6 chars/sec |
+| CoreML / ANE | Qwen3.5-0.8B | 13018 ms | 530 ms | 1954 ms | 303 | 155.1 chars/sec |
 | MLX / GPU | Qwen3.5-0.8B 4-bit | 997 ms | **42 ms** | **108 ms** | 89 | **821.2 chars/sec** |
+
+Same-model comparison: on Qwen3.5-0.8B, MLX's 4-bit GPU build clears time-to-first-token by ~12× over CoreML's full-precision ANE build (42 ms vs 530 ms). CoreML produces longer answers but at lower throughput. Different optimization stories — CoreML excels at energy-per-token on iPhone, MLX excels at latency on Mac.
 
 Lower is better for load / TTFT / total; higher is better for throughput.
 

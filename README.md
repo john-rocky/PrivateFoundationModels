@@ -420,6 +420,7 @@ Standardized `streamResponse` bench on M4 Max / macOS 26.0 (median of 3 timed it
 |---|---|---|---|---|---|
 | Apple FM (Apple's 3 B) | 0 ms | 297 ms | 582 ms | 147 | 252.7 chars/s |
 | CoreML / ANE (LFM2.5-350M) | 8235 ms | 533 ms | 648 ms | 25 | 38.6 chars/s |
+| CoreML / ANE (Qwen3.5-0.8B) | 13018 ms | 530 ms | 1954 ms | 303 | 155.1 chars/s |
 | MLX / GPU (Qwen3.5-0.8B 4-bit) | 997 ms | **42 ms** | **108 ms** | 89 | **821.2 chars/s** |
 
 `MODEL` = API works, content quality limited by the small model used for verification (a larger model lands the test in PASS). `FAIL` = framework / backend regression — zero is the only acceptable number across every backend.
