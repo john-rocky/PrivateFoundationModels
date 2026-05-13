@@ -42,6 +42,16 @@ Listing models via openai SDK
   - apple-fm  (owned_by=pfm)
 ```
 
+## Embeddings (experimental)
+
+`openai_embeddings_demo.py` calls `/v1/embeddings` via the official SDK:
+
+```python
+resp = client.embeddings.create(model="mlx-embedder", input=texts)
+```
+
+Requires `pfm-serve-mlx --embedding-model <repo>` so an MLX-backed `EmbeddingBackend` is installed. The endpoint returns 503 with a clear message when no embedder is configured. The MLX embedder is **experimental** — built and wired, but the per-model preprocessing (padding / mask / pooling) hasn't been verified against every `mlx-community/*` embedding repo yet. Report bugs.
+
 ## Tool calling (function calling)
 
 `openai_tools_demo.py` drives a two-turn function-calling interaction against `pfm-serve-apple`:

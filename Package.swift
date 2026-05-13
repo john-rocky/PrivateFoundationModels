@@ -167,6 +167,9 @@ let package = Package(
                 // this product opens the `mlx-community/*-VL-*` family
                 // without changing any call sites.
                 .product(name: "MLXVLM", package: "mlx-swift-lm"),
+                // Embedding-model factory + container — drives MLXEmbedder
+                // for /v1/embeddings.
+                .product(name: "MLXEmbedders", package: "mlx-swift-lm"),
                 .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
                 .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
                 // Required so the `#huggingFaceTokenizerLoader()` macro

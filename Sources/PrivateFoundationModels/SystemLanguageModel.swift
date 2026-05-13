@@ -41,12 +41,30 @@ public final class SystemLanguageModel: @unchecked Sendable {
         set { _defaultStorage.set(newValue) }
     }
 
+    /// Process-wide default embedding backend. Independent from
+    /// `SystemLanguageModel.default` because embedding models and
+    /// chat / Generable models almost always live in separate
+    /// bundles. Installed once at app startup; `pfm-serve`'s
+    /// `/v1/embeddings` endpoint reads from this slot.
+    public static var defaultEmbedder: (any EmbeddingBackend)? {
+        get { _embedderStorage.get() }
+        set { _embedderStorage.set(newValue) }
+    }
+    private static let _embedderStorage = EmbedderStorage()
+
     private final class DefaultStorage: @unchecked Sendable {
         private var value: SystemLanguageModel
         private let lock = NSLock()
         init() { self.value = SystemLanguageModel(backend: PlaceholderBackend()) }
         func get() -> SystemLanguageModel { lock.lock(); defer { lock.unlock() }; return value }
         func set(_ v: SystemLanguageModel) { lock.lock(); defer { lock.unlock() }; value = v }
+    }
+
+    private final class EmbedderStorage: @unchecked Sendable {
+        private var value: (any EmbeddingBackend)?
+        private let lock = NSLock()
+        func get() -> (any EmbeddingBackend)? { lock.lock(); defer { lock.unlock() }; return value }
+        func set(_ v: (any EmbeddingBackend)?) { lock.lock(); defer { lock.unlock() }; value = v }
     }
 
     /// The backend instance this model wraps. Public so advanced callers

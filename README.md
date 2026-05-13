@@ -537,11 +537,18 @@ Standardized `streamResponse` bench on M4 Max / macOS 26.0 (median of 3 timed it
   `/v1/chat/completions` (request `"stream": true`). OpenAI-shaped
   `chat.completion.chunk` payloads with incremental `delta.content`,
   terminated by `data: [DONE]`.
-- **v0.7.2 (current)** — Browser support: CORS preflight (`OPTIONS
-  /v1/*`) with `Access-Control-Allow-*` headers on every response.
-  OpenAI JSON mode (`response_format: {type: "json_object"}`) routes
-  through a strict-JSON system prompt and strips ` ```json … ``` `
-  fences server-side so consumers can `JSON.parse(content)` directly.
+- v0.7.2 — Browser support: CORS preflight + `Access-Control-Allow-*`
+  headers. OpenAI JSON mode (`response_format: json_object`).
+- v0.7.3 — JSON mode honored in the streaming path too.
+- v0.8.0 — OpenAI function calling over HTTP. `tools[]` + `tool_calls[]`
+  round-trip verified against the official `openai` Python SDK.
+- v0.8.1 — OpenAI vision content arrays. `data:image/<mime>;base64,...`
+  URIs decoded inline; first image flows to `respond(to:image:)`;
+  text-only backends drop silently.
+- **v0.9.0 (current)** — `/v1/embeddings` endpoint + `EmbeddingBackend`
+  protocol + `MLXEmbedder` (experimental). `pfm-serve-mlx
+  --embedding-model <repo>` opt-in. Drop-in compatible with
+  `openai.embeddings.create(...)`.
 - v0.8 — Qwen3-VL routing on CoreML, grammar-constrained sampler
   behind a feature flag, llama.cpp / GGUF backend.
 - v0.6 — llama.cpp / GGUF backend

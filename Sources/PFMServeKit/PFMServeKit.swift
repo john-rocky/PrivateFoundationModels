@@ -194,8 +194,56 @@ public final class PFMServer: @unchecked Sendable {
         case ("POST", "/v1/chat/completions"),
              ("POST", "/v1/completions"):
             return await chatCompletions(request, on: connection)
+        case ("POST", "/v1/embeddings"):
+            return await embeddings(request)
         default:
             return HTTPResponse(status: 404, body: "not found")
+        }
+    }
+
+    private func embeddings(_ request: HTTPRequest) async -> HTTPResponse {
+        guard let embedder = SystemLanguageModel.defaultEmbedder else {
+            return HTTPResponse.json(503, [
+                "error": [
+                    "message": "no embedding backend installed. Set SystemLanguageModel.defaultEmbedder before starting the server.",
+                    "type": "pfm_no_embedder",
+                ],
+            ])
+        }
+        guard
+            let json = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any]
+        else {
+            return HTTPResponse.json(400, ["error": ["message": "invalid JSON body"]])
+        }
+        let inputs: [String]
+        if let single = json["input"] as? String {
+            inputs = [single]
+        } else if let arr = json["input"] as? [String] {
+            inputs = arr
+        } else {
+            return HTTPResponse.json(400, [
+                "error": ["message": "'input' must be a string or an array of strings"],
+            ])
+        }
+        do {
+            let vectors = try await embedder.embed(inputs)
+            let data: [[String: Any]] = vectors.enumerated().map { i, v in
+                ["object": "embedding", "index": i, "embedding": v]
+            }
+            let payload: [String: Any] = [
+                "object": "list",
+                "data": data,
+                "model": embedder.modelIdentifier,
+                "usage": [
+                    "prompt_tokens": NSNull(),
+                    "total_tokens": NSNull(),
+                ],
+            ]
+            return HTTPResponse.json(200, payload)
+        } catch {
+            return HTTPResponse.json(500, [
+                "error": ["message": "\(error)", "type": "pfm_embedding_error"],
+            ])
         }
     }
 

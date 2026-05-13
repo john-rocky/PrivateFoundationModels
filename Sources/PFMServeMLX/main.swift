@@ -23,6 +23,7 @@ func run() async {
     let modelID = arg(after: "--model") ?? "mlx-community/Qwen3.5-0.8B-MLX-4bit"
     let port = UInt16(arg(after: "--port") ?? "") ?? 11434
     let host = arg(after: "--host") ?? "127.0.0.1"
+    let embedderID = arg(after: "--embedding-model")
 
     print("[pfm-serve-mlx] loading \(modelID) …")
     let backend: MLXBackend
@@ -33,6 +34,21 @@ func run() async {
         exit(2)
     }
     SystemLanguageModel.default = SystemLanguageModel(backend: backend)
+
+    if let embedderID {
+        print("[pfm-serve-mlx] loading embedder \(embedderID) …")
+        do {
+            let embedder = try await MLXEmbedder.load(embedderID) { stage in
+                print("  • \(stage)")
+            }
+            SystemLanguageModel.defaultEmbedder = embedder
+            print("[pfm-serve-mlx] /v1/embeddings ready — dim=\(embedder.dimensions)")
+        } catch {
+            FileHandle.standardError.write(Data(
+                "Embedder load failed (\(embedderID)): \(error)\nServer will still start; /v1/embeddings returns 503.\n".utf8
+            ))
+        }
+    }
 
     do {
         let server = try PFMServer(
