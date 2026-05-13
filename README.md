@@ -397,6 +397,28 @@ If you find a method or initializer in Apple's docs that PFM doesn't ship, pleas
 
 ---
 
+## Serve over HTTP (v0.7.0)
+
+Expose any PFM backend behind an OpenAI-compatible local endpoint so non-Swift codebases (Python, Node, curl, the official OpenAI SDKs) can hit Apple's on-device model, a CoreML model, or an MLX model without changing a line of their existing chat-completions code:
+
+```bash
+swift run -c release pfm-serve-apple
+# [pfm-serve] listening on http://127.0.0.1:11434  →  model=apple-fm
+
+curl http://127.0.0.1:11434/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"apple-fm","messages":[{"role":"user","content":"Capital of France?"}]}'
+# {"choices":[{"finish_reason":"stop","index":0,"message":{"content":"The capital of France is Paris.","role":"assistant"}}], ...}
+```
+
+Three thin executables share the same `PFMServeKit` transport layer:
+
+- `pfm-serve-apple` — Apple's native FoundationModels (macOS 26+ with Apple Intelligence)
+- `pfm-serve-coreml --model <id>` — any catalog model
+- `pfm-serve-mlx --model <repo>` — any `mlx-community/*` repo (build via xcodebuild)
+
+Endpoints: `POST /v1/chat/completions`, `POST /v1/completions`, `GET /v1/models`, `GET /healthz`. Streaming (SSE) lands in v0.7.1. Sample response: [`docs/pfm-serve-sample.json`](docs/pfm-serve-sample.json).
+
 ## Tutorial
 
 New here? Read the [5-minute walkthrough](docs/TUTORIAL.md). It takes you from `swift package init` to streaming `@Generable` output through Apple's native model.
@@ -477,12 +499,17 @@ Standardized `streamResponse` bench on M4 Max / macOS 26.0 (median of 3 timed it
 - v0.6.0 — `respond(to:generating:T.self)` auto-retries
   on `decodingFailure` (default 2 retries, configurable via
   `maximumRetries:`). Retry prompts append a schema reminder.
-- **v0.6.1 (current)** — `AppleFoundationModel.load(useCase:)` and
-  `load(adapter:)` overloads. Surfaces Apple's `UseCase` (`.general` /
-  `.contentTagging`) and `Adapter` (`.name(...)` / `.fileURL(...)`)
-  through PFM so apps can target the content-tagging variant or load
+- v0.6.1 — `AppleFoundationModel.load(useCase:)` and
+  `load(adapter:)` overloads. Surfaces Apple's `UseCase` and
+  `Adapter` through PFM so apps can target content-tagging or load
   a fine-tuned LoRA without importing FoundationModels directly.
-- v0.7 — Qwen3-VL routing on CoreML, grammar-constrained sampler
+- **v0.7.0 (current)** — `pfm-serve-{apple,coreml,mlx}` — OpenAI-
+  compatible local HTTP servers. Exposes `POST /v1/chat/completions`,
+  `POST /v1/completions`, `GET /v1/models`, `GET /healthz` over
+  `Network.framework`'s `NWListener` (zero new package deps). Curl
+  Apple Intelligence from any language. Streaming via SSE lands in
+  v0.7.1.
+- v0.8 — Qwen3-VL routing on CoreML, grammar-constrained sampler
   behind a feature flag, llama.cpp / GGUF backend.
 - v0.6 — llama.cpp / GGUF backend
 - v0.7 — Grammar-constrained decoding

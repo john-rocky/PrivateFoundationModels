@@ -74,6 +74,16 @@ let package = Package(
         //   xcodebuild -scheme pfm-mlx-deep ...
         .executable(name: "pfm-mlx-deep", targets: ["PFMMLXDeep"]),
 
+        // OpenAI-compatible HTTP server backed by any PFM backend.
+        // Three thin executables share the same PFMServeKit transport
+        // layer; pick the one matching the runtime you want.
+        //   swift run -c release pfm-serve-apple   [--port 11434]
+        //   swift run -c release pfm-serve-coreml  [--model lfm2.5-350m]
+        //   xcodebuild -scheme pfm-serve-mlx …     (Metal shaders)
+        .executable(name: "pfm-serve-apple",  targets: ["PFMServeApple"]),
+        .executable(name: "pfm-serve-coreml", targets: ["PFMServeCoreML"]),
+        .executable(name: "pfm-serve-mlx",    targets: ["PFMServeMLX"]),
+
         // Smoke test for the Apple FoundationModels passthrough
         // backend. Loads `FoundationModels.SystemLanguageModel.default`
         // (Apple's native on-device model) and runs respond /
@@ -263,6 +273,48 @@ let package = Package(
                 .swiftLanguageMode(.v6),
             ]
         ),
+        // OpenAI-compatible HTTP server scaffolding.
+        .target(
+            name: "PFMServeKit",
+            dependencies: ["PrivateFoundationModels"],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ]
+        ),
+        .executableTarget(
+            name: "PFMServeApple",
+            dependencies: [
+                "PFMServeKit",
+                "PrivateFoundationModels",
+                "PrivateFoundationModelsApple",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ]
+        ),
+        .executableTarget(
+            name: "PFMServeCoreML",
+            dependencies: [
+                "PFMServeKit",
+                "PrivateFoundationModels",
+                "PrivateFoundationModelsCoreML",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ]
+        ),
+        .executableTarget(
+            name: "PFMServeMLX",
+            dependencies: [
+                "PFMServeKit",
+                "PrivateFoundationModels",
+                "PrivateFoundationModelsMLX",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ]
+        ),
+
         // Bench scaffolding: shared library + one thin exe per backend.
         .target(
             name: "PFMBenchKit",

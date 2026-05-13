@@ -6,6 +6,30 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-05-13
+
+### Added
+- `pfm-serve-apple` / `pfm-serve-coreml` / `pfm-serve-mlx`
+  OpenAI-compatible HTTP servers. Each exposes:
+  - `POST /v1/chat/completions`
+  - `POST /v1/completions` (delegates to chat-completions)
+  - `GET /v1/models` (returns the installed backend's identifier)
+  - `GET /healthz`
+- New shared library `PFMServeKit` implementing minimal HTTP/1.1
+  on top of `Network.framework`'s `NWListener`. Zero new package
+  dependencies — chunked-encoding bodies not yet supported; standard
+  `Content-Length` bodies from curl / the OpenAI SDKs / requests /
+  axios work out of the box.
+- `docs/pfm-serve-sample.json`: real captured response from Apple's
+  native model through the HTTP endpoint.
+
+### Notes
+- Streaming (`"stream": true` → Server-Sent Events) is not implemented
+  in this release; requests are answered synchronously. SSE lands in
+  v0.7.1.
+- The server runs on `127.0.0.1` by default. Pass `--host 0.0.0.0` to
+  expose it on the LAN at your own risk.
+
 ## [0.6.1] — 2026-05-13
 
 ### Added

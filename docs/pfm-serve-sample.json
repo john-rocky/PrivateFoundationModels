@@ -1,0 +1,21 @@
+{
+    "choices": [
+        {
+            "finish_reason": "stop",
+            "index": 0,
+            "message": {
+                "content": "Swift concurrency is a powerful feature that allows developers to write more responsive and efficient code by enabling tasks to run concurrently. Here are three concise facts about Swift concurrency:\n\n1. Grand Central Dispatch (GCD): GCD is a high-level API that provides a set of tools for managing concurrent execution of tasks. It allows you to perform tasks asynchronously using dispatch queues and dispatch groups.\n\n2. Swift Concurrency Model: Swift introduced a more modern concurrency model with async/await syntax, which simplifies the handling of asynchronous code. This model allows you to write asynchronous code using",
+                "role": "assistant"
+            }
+        }
+    ],
+    "created": 1778653025,
+    "id": "chatcmpl-CA312B72-F3BA-4CCA-A5F3-DA7993904C16",
+    "model": "apple-fm",
+    "object": "chat.completion",
+    "usage": {
+        "completion_tokens": null,
+        "prompt_tokens": null,
+        "total_tokens": null
+    }
+}
