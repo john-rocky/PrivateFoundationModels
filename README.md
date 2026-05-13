@@ -419,6 +419,20 @@ Three thin executables share the same `PFMServeKit` transport layer:
 
 Endpoints: `POST /v1/chat/completions` (with `"stream": true` SSE since v0.7.1), `POST /v1/completions`, `GET /v1/models`, `GET /healthz`. Sample unary response: [`docs/pfm-serve-sample.json`](docs/pfm-serve-sample.json). Sample streaming session: [`docs/pfm-serve-stream-sample.txt`](docs/pfm-serve-stream-sample.txt).
 
+**The official `openai` Python SDK works against `pfm-serve` unchanged.** See [`Examples/PythonClient/`](Examples/PythonClient/) for the demo — `client.chat.completions.create(...)`, `stream=True` chunk iteration, and `client.models.list()` all verified end-to-end against Apple's native FoundationModels on macOS 26.0.
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://127.0.0.1:11434/v1", api_key="not-required")
+stream = client.chat.completions.create(
+    model="apple-fm",
+    messages=[{"role": "user", "content": "Three Swift facts."}],
+    stream=True,
+)
+for chunk in stream:
+    print(chunk.choices[0].delta.content or "", end="", flush=True)
+```
+
 ```bash
 curl -N http://127.0.0.1:11434/v1/chat/completions \
   -H 'Content-Type: application/json' \
