@@ -395,6 +395,19 @@ If you find a method or initializer in Apple's docs that PFM doesn't ship, pleas
 
 ---
 
+## FAQ
+
+Common questions in [`docs/FAQ.md`](docs/FAQ.md). Highlights:
+
+- *Is this affiliated with Apple?* — No.
+- *Why not wait for iOS 26?* — installed base, model choice, adapter support.
+- *Does `@Generable` work on Apple's native model?* — yes since v0.4.1.
+- *Does `Tool` calling work on Apple's native model?* — yes since v0.5.0, with full transcript audit trail since v0.5.1.
+
+## Changelog
+
+Tagged releases on GitHub plus a high-level rollup in [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Examples
 
 - [`Examples/PFMChat/`](Examples/PFMChat/) — single-file SwiftUI chat app (~200 lines). Loads `mlboydaisuke/lfm2.5-350m-coreml`, streams responses.
