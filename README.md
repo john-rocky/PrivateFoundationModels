@@ -9,11 +9,11 @@
 
 <p align="center">
   <a href="docs/RUNTIME_COMPARISON.md">
-    <img src="docs/media/runtime-comparison-m4max.png" alt="Same Qwen3.5-0.8B on M4 Max and iPhone Air, decode-only throughput. MLX/GPU 4-bit beats CoreML/ANE FP16 on both. M4 Max — 12.2× TTFT, 5.8× decode. iPhone Air — 7× TTFT, 2.9× decode." width="820">
+    <img src="docs/media/gemma4-runtime-iphone.png" alt="Gemma 4 E2B on iPhone Air, CoreML/ANE FP16 vs MLX/GPU 4-bit, real tokenizer counts. TTFT: MLX 84 ms vs CoreML 661 ms (8× faster). Decode: MLX 45.2 tok/sec vs CoreML 34.6 tok/sec (1.31× faster)." width="820">
   </a>
 </p>
 
-<p align="center"><em>Same model, same prompt, same call site — different runtime. Mac and iPhone, decode-only throughput (prefill is on the left chart, so we don't double-count it here). <a href="docs/RUNTIME_COMPARISON.md">Full table, caveats, and the token-per-second sanity check.</a></em></p>
+<p align="center"><em>Gemma 4 E2B on iPhone Air — same prompt, same call site, two runtimes. Real tokens (counted via each backend's tokenizer, not chars/4). MLX wins TTFT by 8×, decode by 1.31×. <a href="docs/RUNTIME_COMPARISON.md">Methodology, Qwen3.5 comparison, and why the decode gap depends on architecture.</a></em></p>
 
 ## 30-second value prop
 
