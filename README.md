@@ -483,7 +483,7 @@ Captured on Apple M4 Max / macOS 26.0 / Swift 6.2.1 / Xcode 26.1, against `mlboy
 | `swift run -c release pfm-apple-smoke` | `respond(to:)` + `streamResponse(to:)` + **Generable** through PFM hitting **Apple's actual native FoundationModels** | ✓ load 0 s, ✓ respond 0.7 s, ✓ stream, ✓ Generable 1.3 s ([log](docs/pfm-apple-smoke.log)) |
 | `swift run -c release pfm-apple-deep` | Full Generable × Tool × Multimodal × PromptBuilder matrix through PFM hitting Apple's native FoundationModels, with transcript reconstruction so tool turns appear in `session.transcript` | **PASS 14 / MODEL 0 / FAIL 0** ([log](docs/pfm-apple-deep.log)) |
 
-Standardized `streamResponse` bench on M4 Max / macOS 26.0 (median of 3 timed iterations, same prompt + 80-token cap, one warmup, see [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md)):
+Standardized `streamResponse` bench on M4 Max / macOS 26.0 (median of 3 timed iterations, same prompt + 80-token cap, one warmup, see [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md)). For the **same model on different runtimes**, see [`docs/RUNTIME_COMPARISON.md`](docs/RUNTIME_COMPARISON.md) — `Qwen3.5-0.8B` is 12.2× faster TTFT and 5× higher throughput on MLX / GPU than on CoreML / ANE for the same prompt.
 
 | Backend | Load | TTFT | Total | Output chars | Throughput |
 |---|---|---|---|---|---|
