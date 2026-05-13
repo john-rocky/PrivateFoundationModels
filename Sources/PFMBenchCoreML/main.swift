@@ -40,6 +40,13 @@ func run() async {
     let (s, atto) = load.components
     let loadMs = (Double(s) + Double(atto) / 1e18) * 1000
 
+    if CommandLine.arguments.contains("--multilang") {
+        let rows = await Bench.runAllLanguages(
+            backendLabel: "CoreML / ANE (\(modelID))", loadMs: loadMs
+        )
+        emitBenchOutput(rows)
+        return
+    }
     let row = await Bench.runAll(label: "CoreML / ANE (\(modelID))", loadMs: loadMs)
     emitBenchOutput([row])
 }

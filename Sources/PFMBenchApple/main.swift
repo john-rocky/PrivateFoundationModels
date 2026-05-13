@@ -17,11 +17,26 @@ func run() async {
         exit(2)
     }
 
-    // Default useCase — most apps will want this.
+    let isMultilang = CommandLine.arguments.contains("--multilang")
+    if isMultilang {
+        // Bench Apple FM across all curated languages.
+        let start = ContinuousClock.now
+        let backend = AppleFoundationModel.load()
+        SystemLanguageModel.default = SystemLanguageModel(backend: backend)
+        let load = ContinuousClock.now - start
+        let (s, atto) = load.components
+        let loadMs = (Double(s) + Double(atto) / 1e18) * 1000
+        let rows = await Bench.runAllLanguages(
+            backendLabel: "Apple FM (.general)", loadMs: loadMs
+        )
+        emitBenchOutput(rows)
+        return
+    }
+
+    // Default: useCase variants.
     let (_, generalRow) = await bench(label: "Apple FM (.general)") {
         AppleFoundationModel.load()
     }
-    // Content-tagging variant exposed in v0.6.1.
     let (_, taggingRow) = await bench(label: "Apple FM (.contentTagging)") {
         AppleFoundationModel.load(useCase: .contentTagging)
     }

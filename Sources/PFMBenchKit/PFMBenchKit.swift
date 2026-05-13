@@ -19,6 +19,122 @@ public struct BenchOptions {
     public static let iterations = 3
 }
 
+/// Curated prompts for the multi-language bench. Each prompt asks the
+/// same task — produce a one-sentence Swift fact in ≤ 30 words — in
+/// the target language. Output length differences between rows show
+/// where the tokenizer + model are stronger / weaker per language.
+public enum BenchLanguage: String, CaseIterable, Sendable {
+    case english = "en"
+    case japanese = "ja"
+    case chinese_simplified = "zh"
+    case korean = "ko"
+    case spanish = "es"
+
+    public var prompt: String {
+        switch self {
+        case .english:
+            return "Write a single-sentence Swift fact in under 30 words."
+        case .japanese:
+            return "Swift について、30 語以内の一文で事実を一つ書いてください。"
+        case .chinese_simplified:
+            return "用一句不超过 30 字的话写一个关于 Swift 的事实。"
+        case .korean:
+            return "Swift에 대한 30단어 이내의 사실 한 문장을 작성하세요."
+        case .spanish:
+            return "Escribe un hecho sobre Swift en una sola oración de menos de 30 palabras."
+        }
+    }
+
+    public var label: String {
+        switch self {
+        case .english:             return "English"
+        case .japanese:            return "日本語"
+        case .chinese_simplified:  return "中文"
+        case .korean:              return "한국어"
+        case .spanish:             return "Español"
+        }
+    }
+}
+
+/// Multi-language variant of `Bench.runAll`. Runs the harness once per
+/// language and returns one row per language so callers can compare
+/// tokenizer / model strength across languages.
+public extension Bench {
+    static func runAllLanguages(
+        backendLabel: String,
+        loadMs: Double,
+        languages: [BenchLanguage] = BenchLanguage.allCases
+    ) async -> [BenchRow] {
+        var rows: [BenchRow] = []
+        for lang in languages {
+            let row = await runOne(
+                label: "\(backendLabel) — \(lang.label)",
+                loadMs: loadMs,
+                prompt: lang.prompt
+            )
+            rows.append(row)
+        }
+        return rows
+    }
+
+    /// Same as `runAll(label:loadMs:)` but with a custom prompt.
+    static func runOne(
+        label: String,
+        loadMs: Double,
+        prompt: String
+    ) async -> BenchRow {
+        var ttfts: [Double] = []
+        var totals: [Double] = []
+        var chars: [Int] = []
+        _ = try? await runOnce(timed: false, prompt: prompt)
+        for _ in 0..<BenchOptions.iterations {
+            if let r = try? await runOnce(timed: true, prompt: prompt) {
+                ttfts.append(r.ttft)
+                totals.append(r.total)
+                chars.append(r.chars)
+            }
+        }
+        return BenchRow(
+            label: label, loadMs: loadMs,
+            ttftMs: ttfts, totalMs: totals, outputChars: chars
+        )
+    }
+
+    private static func runOnce(timed: Bool, prompt: String) async throws
+        -> (ttft: Double, total: Double, chars: Int)
+    {
+        let session = LanguageModelSession(instructions: Instructions("Be brief."))
+        let options = GenerationOptions(
+            temperature: BenchOptions.temperature,
+            maximumResponseTokens: BenchOptions.maxTokens
+        )
+        let start = ContinuousClock.now
+        var firstAt: ContinuousClock.Instant?
+        var lastText = ""
+        let stream = session.streamResponse(to: prompt, options: options)
+        for try await snapshot in stream {
+            let text = snapshot.content
+            if firstAt == nil, !text.isEmpty {
+                firstAt = ContinuousClock.now
+            }
+            lastText = text
+        }
+        let end = ContinuousClock.now
+        let totalMs = millisRange(start, end)
+        let ttftMs = firstAt.map { millisRange(start, $0) } ?? totalMs
+        return (ttftMs, totalMs, lastText.count)
+    }
+
+    private static func millisRange(
+        _ start: ContinuousClock.Instant,
+        _ end: ContinuousClock.Instant
+    ) -> Double {
+        let dur = end - start
+        let (s, atto) = dur.components
+        return (Double(s) + Double(atto) / 1e18) * 1000
+    }
+}
+
 public struct BenchRow {
     public var label: String
     public var loadMs: Double

@@ -1,0 +1,16 @@
+timestamp,hardware,backend,load_ms,ttft_ms,total_ms,output_chars,chars_per_sec
+2026-05-13T08:38:08Z,"Apple M4 Max","Apple FM (.general) — English",0,299,587,147,250.4
+2026-05-13T08:38:08Z,"Apple M4 Max","Apple FM (.general) — 日本語",0,380,520,49,94.2
+2026-05-13T08:38:08Z,"Apple M4 Max","Apple FM (.general) — 中文",0,299,406,23,56.6
+2026-05-13T08:38:08Z,"Apple M4 Max","Apple FM (.general) — 한국어",0,322,506,47,92.9
+2026-05-13T08:38:08Z,"Apple M4 Max","Apple FM (.general) — Español",0,268,583,164,281.4
+2026-05-13T08:38:25Z,"Apple M4 Max","MLX / GPU (Qwen3.5-0.8B-MLX-4bit) — English",963,42,109,89,814.1
+2026-05-13T08:38:25Z,"Apple M4 Max","MLX / GPU (Qwen3.5-0.8B-MLX-4bit) — 日本語",963,46,122,40,328.7
+2026-05-13T08:38:25Z,"Apple M4 Max","MLX / GPU (Qwen3.5-0.8B-MLX-4bit) — 中文",963,44,117,47,403.2
+2026-05-13T08:38:25Z,"Apple M4 Max","MLX / GPU (Qwen3.5-0.8B-MLX-4bit) — 한국어",963,44,342,275,804.6
+2026-05-13T08:38:25Z,"Apple M4 Max","MLX / GPU (Qwen3.5-0.8B-MLX-4bit) — Español",963,45,163,159,973.1
+2026-05-13T08:39:10Z,"Apple M4 Max","CoreML / ANE (qwen3.5-0.8B) — English",12999,522,1908,303,158.8
+2026-05-13T08:39:10Z,"Apple M4 Max","CoreML / ANE (qwen3.5-0.8B) — 日本語",12999,589,1091,85,77.9
+2026-05-13T08:39:10Z,"Apple M4 Max","CoreML / ANE (qwen3.5-0.8B) — 中文",12999,559,819,43,52.5
+2026-05-13T08:39:10Z,"Apple M4 Max","CoreML / ANE (qwen3.5-0.8B) — 한국어",12999,571,1965,247,125.7
+2026-05-13T08:39:10Z,"Apple M4 Max","CoreML / ANE (qwen3.5-0.8B) — Español",12999,613,1263,195,154.4

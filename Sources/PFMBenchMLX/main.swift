@@ -33,7 +33,15 @@ func run() async {
     let (s, atto) = load.components
     let loadMs = (Double(s) + Double(atto) / 1e18) * 1000
 
-    let row = await Bench.runAll(label: "MLX / GPU (\(modelID.split(separator: "/").last ?? Substring(modelID)))", loadMs: loadMs)
+    let backendLabel = "MLX / GPU (\(modelID.split(separator: "/").last ?? Substring(modelID)))"
+    if CommandLine.arguments.contains("--multilang") {
+        let rows = await Bench.runAllLanguages(
+            backendLabel: backendLabel, loadMs: loadMs
+        )
+        emitBenchOutput(rows)
+        return
+    }
+    let row = await Bench.runAll(label: backendLabel, loadMs: loadMs)
     emitBenchOutput([row])
 }
 
