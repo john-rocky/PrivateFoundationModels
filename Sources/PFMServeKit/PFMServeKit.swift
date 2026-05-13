@@ -297,10 +297,25 @@ public final class PFMServer: @unchecked Sendable {
         on connection: NWConnection
     ) async {
         let session: LanguageModelSession
-        if instructions.isEmpty {
+        let jsonMode = isJSONMode(json)
+        let resolvedInstructions: String
+        if jsonMode {
+            // Same strict-JSON instruction the non-streaming path
+            // uses. Note we cannot strip ` ```json … ``` ` fences
+            // mid-stream because the fence boundary arrives split
+            // across chunks; clients should parse defensively when
+            // streaming JSON mode.
+            let strictness = "Respond with exactly one valid JSON object. No prose, no markdown code fences, no leading or trailing text."
+            resolvedInstructions = instructions.isEmpty
+                ? strictness
+                : "\(instructions)\n\n\(strictness)"
+        } else {
+            resolvedInstructions = instructions
+        }
+        if resolvedInstructions.isEmpty {
             session = LanguageModelSession()
         } else {
-            session = LanguageModelSession(instructions: Instructions(instructions))
+            session = LanguageModelSession(instructions: Instructions(resolvedInstructions))
         }
         let temperature = (json["temperature"] as? Double)
         let maxTokens = (json["max_tokens"] as? Int) ?? (json["max_completion_tokens"] as? Int)
