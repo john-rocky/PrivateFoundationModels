@@ -414,6 +414,8 @@ Captured on Apple M4 Max / macOS 26.0 / Swift 6.2.1 / Xcode 26.1, against `mlboy
 | `swift run -c release pfm-apple-smoke` | `respond(to:)` + `streamResponse(to:)` + **Generable** through PFM hitting **Apple's actual native FoundationModels** | ✓ load 0 s, ✓ respond 0.7 s, ✓ stream, ✓ Generable 1.3 s ([log](docs/pfm-apple-smoke.log)) |
 | `swift run -c release pfm-apple-deep` | Full Generable × Tool × Multimodal × PromptBuilder matrix through PFM hitting Apple's native FoundationModels, with transcript reconstruction so tool turns appear in `session.transcript` | **PASS 14 / MODEL 0 / FAIL 0** ([log](docs/pfm-apple-deep.log)) |
 
+Per-backend latency ballpark (M4 Max / macOS 26.0): Apple FM `respond` 641 ms, CoreML LFM2.5 564–847 ms, MLX Qwen3.5-0.8B 170 ms. See [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) for the methodology and caveats.
+
 `MODEL` = API works, content quality limited by the small model used for verification (a larger model lands the test in PASS). `FAIL` = framework / backend regression — zero is the only acceptable number across every backend.
 
 ## Roadmap
