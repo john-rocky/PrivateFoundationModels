@@ -16,18 +16,39 @@ func run() async {
         ))
         exit(2)
     }
+
+    // Default useCase — most apps will want this.
+    let (generalLoad, generalRow) = await bench(label: "Apple FM (.general)") {
+        AppleFoundationModel.load()
+    }
+    print(generalRow.summary())
+
+    // Content-tagging variant exposed in v0.6.1.
+    let (taggingLoad, taggingRow) = await bench(label: "Apple FM (.contentTagging)") {
+        AppleFoundationModel.load(useCase: .contentTagging)
+    }
+    print(taggingRow.summary())
+
+    _ = (generalLoad, taggingLoad)  // already captured in rows
+    print()
+    print("Markdown:")
+    print(generalRow.markdownRow())
+    print(taggingRow.markdownRow())
+}
+
+@available(macOS 26.0, iOS 26.0, visionOS 26.0, *)
+func bench(
+    label: String,
+    factory: () -> AppleFoundationModelBackend
+) async -> (loadMs: Double, row: BenchRow) {
     let start = ContinuousClock.now
-    let backend = AppleFoundationModel.load()
+    let backend = factory()
     SystemLanguageModel.default = SystemLanguageModel(backend: backend)
     let load = ContinuousClock.now - start
     let (s, atto) = load.components
     let loadMs = (Double(s) + Double(atto) / 1e18) * 1000
-
-    let row = await Bench.runAll(label: "Apple FM (native)", loadMs: loadMs)
-    print(row.summary())
-    print()
-    print("Markdown:")
-    print(row.markdownRow())
+    let row = await Bench.runAll(label: label, loadMs: loadMs)
+    return (loadMs, row)
 }
 
 if #available(macOS 26.0, iOS 26.0, visionOS 26.0, *) {

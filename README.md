@@ -439,7 +439,8 @@ Standardized `streamResponse` bench on M4 Max / macOS 26.0 (median of 3 timed it
 
 | Backend | Load | TTFT | Total | Output chars | Throughput |
 |---|---|---|---|---|---|
-| Apple FM (Apple's 3 B) | 0 ms | 297 ms | 582 ms | 147 | 252.7 chars/s |
+| Apple FM (`.general`, 3 B) | 0 ms | 310 ms | 595 ms | 147 | 247.0 chars/s |
+| Apple FM (`.contentTagging`) | 1 ms | 502 ms | 530 ms | 53 | 100.0 chars/s |
 | CoreML / ANE (LFM2.5-350M) | 8235 ms | 533 ms | 648 ms | 25 | 38.6 chars/s |
 | CoreML / ANE (Qwen3.5-0.8B) | 13018 ms | 530 ms | 1954 ms | 303 | 155.1 chars/s |
 | MLX / GPU (Qwen3.5-0.8B 4-bit) | 997 ms | **42 ms** | **108 ms** | 89 | **821.2 chars/s** |
