@@ -241,7 +241,10 @@ struct GenerableDeepTests {
         let session = LanguageModelSession(model: SystemLanguageModel(backend: stub))
 
         do {
-            _ = try await session.respond(to: "x", generating: Recipe.self)
+            // maximumRetries: 0 — exercise the raw decode-failure path
+            // without engaging the auto-retry behavior.
+            _ = try await session.respond(to: "x", generating: Recipe.self,
+                                           maximumRetries: 0)
             Issue.record("expected decodingFailure")
         } catch let error as GenerationError {
             if case .decodingFailure(let raw) = error {

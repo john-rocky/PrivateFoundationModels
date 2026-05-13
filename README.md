@@ -254,6 +254,8 @@ print(report.content.temperatureCelsius)
 
 `@Generable` is the same macro shape Apple ships in `FoundationModels` — it walks stored properties, picks a JSON-Schema type per field, drops `Optional` fields out of `required`, and recurses into nested `@Generable` types. `@Guide(description:)` is also supported. If you prefer to write the schema by hand (no macro), conform to `Generable` and supply `static var generationSchema` directly.
 
+**Reliability:** if the model returns text that doesn't parse as `T` on the first try, `respond(to:generating:)` automatically retries up to `maximumRetries` more times (default 2) with a tightened schema-reminder prompt. Override with `maximumRetries: 0` to lock in single-shot Apple-FM-strict behavior. Apple's native backend rarely trips this because its constrained sampler enforces the schema directly; the CoreML and MLX backends benefit when small models occasionally emit invalid JSON.
+
 ### Tools
 
 ```swift
@@ -464,14 +466,20 @@ Standardized `streamResponse` bench on M4 Max / macOS 26.0 (median of 3 timed it
   session, called automatically by Apple's tool loop, and thrown
   errors are unwrapped from `ToolCallError` before reaching the
   caller.
-- **v0.5.1 (current)** — Transcript reconstruction through Apple's
+- v0.5.1 — Transcript reconstruction through Apple's
   opaque tool loop: the backend translates Apple's post-call
   `.toolCalls` / `.toolOutput` entries back to PFM
   `Transcript.Entry` values and returns them via
-  `BackendGeneration.transcriptDelta`, so `session.transcript`
-  surfaces the full audit trail on Apple just as it does on
-  CoreML / MLX. `pfm-apple-deep` matrix runs **PASS 14 / FAIL 0**.
-- v0.6 — Qwen3-VL routing on CoreML, grammar-constrained sampler
+  `BackendGeneration.transcriptDelta`. `pfm-apple-deep` PASS 14 / FAIL 0.
+- v0.5.2 — Standardized `pfm-bench-{apple,coreml,mlx}` harness.
+  Apples-to-apples M4 Max baseline in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
+- **v0.6.0 (current)** — `respond(to:generating:T.self)` auto-retries
+  on `decodingFailure` (default 2 retries, configurable via
+  `maximumRetries:`). Retry prompts append a schema reminder.
+  Reliability win for small CoreML / MLX models without needing a
+  grammar-constrained sampler. Apple FM backend never trips it
+  because Apple's constrained sampler enforces the schema natively.
+- v0.7 — Qwen3-VL routing on CoreML, grammar-constrained sampler
   behind a feature flag, llama.cpp / GGUF backend.
 - v0.6 — llama.cpp / GGUF backend
 - v0.7 — Grammar-constrained decoding

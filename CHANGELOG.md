@@ -6,6 +6,31 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-05-13
+
+### Added
+- `respond(to:generating:T.self)` auto-retries on
+  `GenerationError.decodingFailure`. Default `maximumRetries: 2`
+  (so a max of 3 backend calls), configurable per call. Retry
+  prompts append a JSON-encoded schema reminder so the model sees
+  exactly what shape it failed to produce. Apple's native backend
+  rarely trips this because its grammar-constrained sampler
+  enforces schema directly; CoreML and MLX benefit when small
+  models occasionally emit invalid JSON.
+- `maximumRetries: 0` restores single-shot Apple-FM-strict
+  behavior for callers that want it.
+- 3 new tests
+  (`generableAutoRetriesOnDecodingFailure`,
+  `generableThrowsAfterRetriesExhausted`,
+  `generableMaximumRetriesZeroDisablesRetry`) cover the contract.
+
+### Changed
+- Two existing tests
+  (`respondGenerableFailsOnGarbledJSON` /
+  `decodingFailureReturnsRawText`) pass `maximumRetries: 0`
+  explicitly so they keep exercising the single-shot decode-failure
+  path now that the default value is 2.
+
 ## [0.5.2] — 2026-05-13
 
 ### Added

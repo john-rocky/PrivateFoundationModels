@@ -220,21 +220,60 @@ public final class LanguageModelSession: @unchecked Sendable {
         to prompt: String,
         generating type: T.Type = T.self,
         includeSchemaInPrompt: Bool = true,
-        options: GenerationOptions = GenerationOptions()
+        options: GenerationOptions = GenerationOptions(),
+        maximumRetries: Int = 2
     ) async throws -> Response<T> {
         let schema: GenerationSchema? = includeSchemaInPrompt ? T.generationSchema : nil
-        let raw = try await runRespondString(prompt: prompt, attachments: [],
-                                              options: options, schema: schema)
-        // Try the raw response first, then fall back to JSON extraction
-        // (strip code fences, balanced-object scan). Some backends already
-        // clean their output; some don't.
-        let candidate = JSONExtraction.extractObject(raw.content) ?? raw.content
-        do {
-            let decoded = try JSONDecoder().decode(T.self, from: Data(candidate.utf8))
-            return Response(content: decoded, transcriptEntries: raw.transcriptEntries)
-        } catch {
-            throw GenerationError.decodingFailure(raw.content)
+        let totalAttempts = max(1, maximumRetries + 1)
+        var lastRaw = ""
+        var collectedEntries: [Transcript.Entry] = []
+
+        for attempt in 1...totalAttempts {
+            let attemptPrompt: String
+            if attempt == 1 {
+                attemptPrompt = prompt
+            } else {
+                attemptPrompt = Self.retryPrompt(
+                    original: prompt,
+                    previousRaw: lastRaw,
+                    schema: T.generationSchema
+                )
+            }
+            let raw = try await runRespondString(
+                prompt: attemptPrompt, attachments: [],
+                options: options,
+                // Even when the caller asked us NOT to include the schema
+                // on the first call, we DO include it on every retry —
+                // a retry's whole point is to tell the model what shape
+                // we wanted.
+                schema: attempt == 1 ? schema : T.generationSchema
+            )
+            lastRaw = raw.content
+            collectedEntries.append(contentsOf: raw.transcriptEntries)
+            let candidate = JSONExtraction.extractObject(raw.content) ?? raw.content
+            if let decoded = try? JSONDecoder().decode(T.self, from: Data(candidate.utf8)) {
+                return Response(content: decoded, transcriptEntries: collectedEntries)
+            }
         }
+        throw GenerationError.decodingFailure(lastRaw)
+    }
+
+    /// Build the retry prompt sent when a `Generable` decode fails. The
+    /// model sees its own failed prior reply in the transcript, plus this
+    /// short reminder. Kept terse to minimize context overhead on retry.
+    private static func retryPrompt(
+        original: String,
+        previousRaw: String,
+        schema: GenerationSchema
+    ) -> String {
+        let schemaJSON = (try? JSONEncoder().encode(schema))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        return """
+        \(original)
+
+        Your previous reply could not be parsed as a JSON object matching the schema. Reply with EXACTLY one JSON object — no prose, no markdown code fences, no leading or trailing text. Schema:
+        \(schemaJSON)
+        """
     }
 
     // MARK: - streamResponse (String)

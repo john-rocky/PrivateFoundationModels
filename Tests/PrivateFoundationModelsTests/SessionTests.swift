@@ -87,7 +87,11 @@ struct SessionTests {
         let session = LanguageModelSession(model: model)
 
         do {
-            _ = try await session.respond(to: "Say hi", generating: Echo.self)
+            // maximumRetries: 0 keeps the original single-shot semantics
+            // for this test; the dedicated retry behavior lives in
+            // generableAutoRetriesOnDecodingFailure below.
+            _ = try await session.respond(to: "Say hi", generating: Echo.self,
+                                           maximumRetries: 0)
             Issue.record("expected decodingFailure to throw")
         } catch let error as GenerationError {
             if case .decodingFailure(let raw) = error {
@@ -240,6 +244,92 @@ struct SessionTests {
         }
         #expect(sawSuccess)
         #expect(sawConcurrent)
+    }
+
+    // MARK: - Generable auto-retry on decoding failure
+
+    struct RetryCity: Generable, Equatable {
+        let city: String
+        let country: String
+        static var generationSchema: GenerationSchema {
+            GenerationSchema(
+                type: "object",
+                properties: [
+                    "city":    .init(type: "string"),
+                    "country": .init(type: "string"),
+                ],
+                required: ["city", "country"]
+            )
+        }
+    }
+
+    /// When the first attempt returns garbage JSON, the session retries
+    /// up to `maximumRetries` more times before throwing
+    /// `decodingFailure`. Each retry pulls a fresh reply from the
+    /// backend.
+    @Test func generableAutoRetriesOnDecodingFailure() async throws {
+        let stub = StubBackend()
+        // Attempt 1: bad JSON. Attempt 2: good JSON.
+        stub.enqueue(.init(text: "not json at all"))
+        stub.enqueue(.init(text: #"{"city":"Paris","country":"France"}"#))
+        let model = SystemLanguageModel(backend: stub)
+        let session = LanguageModelSession(model: model)
+
+        let reply = try await session.respond(
+            to: "Pick a landmark.",
+            generating: RetryCity.self
+        )
+        #expect(reply.content == RetryCity(city: "Paris", country: "France"))
+    }
+
+    /// When every attempt fails, the final decodingFailure carries the
+    /// last raw response.
+    @Test func generableThrowsAfterRetriesExhausted() async throws {
+        let stub = StubBackend()
+        stub.enqueue(.init(text: "bad-1"))
+        stub.enqueue(.init(text: "bad-2"))
+        stub.enqueue(.init(text: "bad-3"))
+        let model = SystemLanguageModel(backend: stub)
+        let session = LanguageModelSession(model: model)
+
+        do {
+            _ = try await session.respond(
+                to: "Pick a landmark.",
+                generating: RetryCity.self,
+                maximumRetries: 2
+            )
+            Issue.record("expected decodingFailure")
+        } catch let error as GenerationError {
+            if case .decodingFailure(let raw) = error {
+                #expect(raw == "bad-3")
+            } else {
+                Issue.record("unexpected error: \(error)")
+            }
+        }
+    }
+
+    /// `maximumRetries: 0` disables auto-retry — the first decode
+    /// failure throws immediately. Restores Apple-FM-strict behavior.
+    @Test func generableMaximumRetriesZeroDisablesRetry() async throws {
+        let stub = StubBackend()
+        stub.enqueue(.init(text: "still bad"))
+        let model = SystemLanguageModel(backend: stub)
+        let session = LanguageModelSession(model: model)
+
+        do {
+            _ = try await session.respond(
+                to: "Pick a landmark.",
+                generating: RetryCity.self,
+                maximumRetries: 0
+            )
+            Issue.record("expected decodingFailure")
+        } catch let error as GenerationError {
+            if case .decodingFailure(let raw) = error {
+                #expect(raw == "still bad")
+            } else {
+                Issue.record("unexpected error: \(error)")
+            }
+        }
     }
 
     // MARK: - Transcript delta (backends that ran the tool loop opaquely)
