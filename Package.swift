@@ -89,6 +89,17 @@ let package = Package(
         // (cross-protocol Tool bridging is v0.5 work).
         //   swift run -c release pfm-apple-deep
         .executable(name: "pfm-apple-deep", targets: ["PFMAppleDeep"]),
+
+        // Standardized single-prompt latency / throughput harness.
+        // Three thin executables (one per backend) share the same
+        // PFMBenchKit library so the rows compose into a coherent
+        // table.
+        //   swift run -c release pfm-bench-apple
+        //   swift run -c release pfm-bench-coreml [--model …]
+        //   xcodebuild -scheme pfm-bench-mlx …   (Metal shaders)
+        .executable(name: "pfm-bench-apple", targets: ["PFMBenchApple"]),
+        .executable(name: "pfm-bench-coreml", targets: ["PFMBenchCoreML"]),
+        .executable(name: "pfm-bench-mlx", targets: ["PFMBenchMLX"]),
     ],
     dependencies: [
         .package(url: "https://github.com/john-rocky/CoreML-LLM", from: "1.8.0"),
@@ -247,6 +258,47 @@ let package = Package(
                 "PFMDeepKit",
                 "PrivateFoundationModels",
                 "PrivateFoundationModelsApple",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ]
+        ),
+        // Bench scaffolding: shared library + one thin exe per backend.
+        .target(
+            name: "PFMBenchKit",
+            dependencies: ["PrivateFoundationModels"],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ]
+        ),
+        .executableTarget(
+            name: "PFMBenchApple",
+            dependencies: [
+                "PFMBenchKit",
+                "PrivateFoundationModels",
+                "PrivateFoundationModelsApple",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ]
+        ),
+        .executableTarget(
+            name: "PFMBenchCoreML",
+            dependencies: [
+                "PFMBenchKit",
+                "PrivateFoundationModels",
+                "PrivateFoundationModelsCoreML",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ]
+        ),
+        .executableTarget(
+            name: "PFMBenchMLX",
+            dependencies: [
+                "PFMBenchKit",
+                "PrivateFoundationModels",
+                "PrivateFoundationModelsMLX",
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
