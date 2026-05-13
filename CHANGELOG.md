@@ -6,6 +6,32 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.7.2] — 2026-05-13
+
+### Added
+- **CORS** support throughout pfm-serve. `OPTIONS /v1/*` preflights
+  return 204 with `Access-Control-Allow-Origin: *`,
+  `Access-Control-Allow-Methods: GET, POST, OPTIONS`, and
+  `Access-Control-Allow-Headers: content-type, authorization`.
+  Every other response carries
+  `Access-Control-Allow-Origin: *` by default. Browser `fetch()`
+  against `http://127.0.0.1:11434` Just Works.
+- **OpenAI JSON mode**: when the request includes
+  `response_format: { "type": "json_object" }` or
+  `"json_schema"`, the server appends a strict JSON-only
+  instruction to the system prompt and post-processes the
+  reply through `JSONExtraction.extractObject(...)` so
+  the assistant `content` is a bare JSON object string —
+  no ` ```json ... ``` ` fence wrapping.
+- HTTP/1.1 `204 No Content` status text wired into the
+  response serializer (was previously emitted as
+  `204 Unknown`).
+
+### Verified
+- `curl -X OPTIONS … /v1/chat/completions` → 204 + CORS headers.
+- `curl … -d '{"response_format":{"type":"json_object"}, …}'` →
+  bare `{"city":"Paris","country":"France"}` content.
+
 ## [0.7.1] — 2026-05-13
 
 ### Added

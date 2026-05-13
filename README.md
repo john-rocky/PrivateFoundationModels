@@ -533,11 +533,15 @@ Standardized `streamResponse` bench on M4 Max / macOS 26.0 (median of 3 timed it
   compatible local HTTP servers. Exposes `POST /v1/chat/completions`,
   `POST /v1/completions`, `GET /v1/models`, `GET /healthz` over
   `Network.framework`'s `NWListener` (zero new package deps).
-- **v0.7.1 (current)** — Streaming Server-Sent Events for
+- v0.7.1 — Streaming Server-Sent Events for
   `/v1/chat/completions` (request `"stream": true`). OpenAI-shaped
   `chat.completion.chunk` payloads with incremental `delta.content`,
-  terminated by `data: [DONE]`. Apple Intelligence streamed to
-  `curl -N` in real time.
+  terminated by `data: [DONE]`.
+- **v0.7.2 (current)** — Browser support: CORS preflight (`OPTIONS
+  /v1/*`) with `Access-Control-Allow-*` headers on every response.
+  OpenAI JSON mode (`response_format: {type: "json_object"}`) routes
+  through a strict-JSON system prompt and strips ` ```json … ``` `
+  fences server-side so consumers can `JSON.parse(content)` directly.
 - v0.8 — Qwen3-VL routing on CoreML, grammar-constrained sampler
   behind a feature flag, llama.cpp / GGUF backend.
 - v0.6 — llama.cpp / GGUF backend

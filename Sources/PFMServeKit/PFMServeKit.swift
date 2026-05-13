@@ -173,6 +173,17 @@ public final class PFMServer: @unchecked Sendable {
         guard let request else {
             return HTTPResponse(status: 400, body: "bad request")
         }
+        // CORS preflight — browsers send OPTIONS before the actual
+        // POST when the request has a custom Content-Type. Reply 204
+        // with permissive Allow headers so `fetch()` from a browser
+        // page works against the local server.
+        if request.method == "OPTIONS" {
+            return HTTPResponse(
+                status: 204,
+                headers: corsHeaders(),
+                body: Data()
+            )
+        }
         switch (request.method, request.path) {
         case ("GET", "/healthz"):
             return HTTPResponse(status: 200, body: "pfm-serve")
@@ -184,6 +195,15 @@ public final class PFMServer: @unchecked Sendable {
         default:
             return HTTPResponse(status: 404, body: "not found")
         }
+    }
+
+    private func corsHeaders() -> [String: String] {
+        [
+            "access-control-allow-origin": "*",
+            "access-control-allow-methods": "GET, POST, OPTIONS",
+            "access-control-allow-headers": "content-type, authorization",
+            "access-control-max-age": "86400",
+        ]
     }
 
     private func modelsList() -> HTTPResponse {
@@ -343,6 +363,26 @@ public final class PFMServer: @unchecked Sendable {
         })
     }
 
+    /// Best-effort extract of the JSON content the model produced —
+    /// strips ``` json ``` / ``` … ``` fences, then takes the first
+    /// balanced `{ … }` if one is present. Falls back to the raw text.
+    static func extractJSONContent(_ raw: String) -> String {
+        let candidate = JSONExtraction.extractObject(raw) ?? JSONExtraction.stripCodeFence(raw)
+        return candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// `true` when the OpenAI client requested
+    /// `response_format: {"type": "json_object"}` (or `"json_schema"`).
+    private func isJSONMode(_ json: [String: Any]) -> Bool {
+        if let format = json["response_format"] as? [String: Any] {
+            if let type = format["type"] as? String,
+               type == "json_object" || type == "json_schema" {
+                return true
+            }
+        }
+        return false
+    }
+
     private func chunkPayload(
         id: String, created: Int,
         role: String?, content: String?, finish: String?
@@ -377,10 +417,22 @@ public final class PFMServer: @unchecked Sendable {
         json: [String: Any]
     ) async -> HTTPResponse {
         let session: LanguageModelSession
-        if instructions.isEmpty {
+        let baseInstructions = instructions
+        let jsonMode = isJSONMode(json)
+        if jsonMode {
+            // OpenAI JSON mode: force the model to emit a single
+            // JSON object. We append the requirement to the system
+            // instructions (or build them fresh) so the prompt itself
+            // stays clean.
+            let strictness = "Respond with exactly one valid JSON object. No prose, no markdown code fences, no leading or trailing text."
+            let combined = baseInstructions.isEmpty
+                ? strictness
+                : "\(baseInstructions)\n\n\(strictness)"
+            session = LanguageModelSession(instructions: Instructions(combined))
+        } else if baseInstructions.isEmpty {
             session = LanguageModelSession()
         } else {
-            session = LanguageModelSession(instructions: Instructions(instructions))
+            session = LanguageModelSession(instructions: Instructions(baseInstructions))
         }
         let temperature = (json["temperature"] as? Double)
         let maxTokens = (json["max_tokens"] as? Int) ?? (json["max_completion_tokens"] as? Int)
@@ -390,6 +442,16 @@ public final class PFMServer: @unchecked Sendable {
         )
         do {
             let response = try await session.respond(to: prompt, options: options)
+            // When the caller asked for JSON mode and the model wrapped
+            // its reply in ```json … ``` (Apple's on-device LLM does
+            // this fairly often), unwrap to the bare JSON object so
+            // consumers can JSON.parse() the content directly.
+            let content: String
+            if jsonMode {
+                content = Self.extractJSONContent(response.content)
+            } else {
+                content = response.content
+            }
             let payload: [String: Any] = [
                 "id": "chatcmpl-\(UUID().uuidString)",
                 "object": "chat.completion",
@@ -399,7 +461,7 @@ public final class PFMServer: @unchecked Sendable {
                     "index": 0,
                     "message": [
                         "role": "assistant",
-                        "content": response.content,
+                        "content": content,
                     ],
                     "finish_reason": "stop",
                 ]],
@@ -517,6 +579,11 @@ struct HTTPResponse {
         var headers = self.headers
         headers["content-length"] = String(body.count)
         headers["connection"] = "close"
+        // Default CORS for any response that didn't already set one —
+        // makes browser fetch() Just Work against the local server.
+        if headers["access-control-allow-origin"] == nil {
+            headers["access-control-allow-origin"] = "*"
+        }
         for (k, v) in headers {
             out.append("\(k): \(v)\r\n".data(using: .utf8)!)
         }
@@ -530,6 +597,7 @@ enum HTTPStatus {
     static func message(for code: Int) -> String {
         switch code {
         case 200: return "OK"
+        case 204: return "No Content"
         case 400: return "Bad Request"
         case 404: return "Not Found"
         case 413: return "Payload Too Large"
