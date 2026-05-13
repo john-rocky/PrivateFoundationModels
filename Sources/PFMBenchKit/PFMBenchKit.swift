@@ -60,6 +60,117 @@ extension BenchRow {
             label, loadMs, medTTFT, medTotal, medChars, charsPerSec
         )
     }
+
+    /// CSV row with the same columns as `markdownRow`, plus a
+    /// hardware label and timestamp so per-machine results from
+    /// different contributors collate cleanly into one table.
+    public func csvRow(hardware: String, timestamp: String = isoNow()) -> String {
+        let medTTFT = median(ttftMs)
+        let medTotal = median(totalMs)
+        let medChars = Double(median(outputChars))
+        let charsPerSec = medTotal > 0 ? (medChars / (medTotal / 1000.0)) : 0
+        // Quote fields that may contain commas / spaces. The label and
+        // hardware tag are the only realistic offenders.
+        let quotedLabel = "\"\(label.replacingOccurrences(of: "\"", with: "\"\""))\""
+        let quotedHW = "\"\(hardware.replacingOccurrences(of: "\"", with: "\"\""))\""
+        return String(
+            format: "%@,%@,%@,%.0f,%.0f,%.0f,%.0f,%.1f",
+            timestamp, quotedHW, quotedLabel,
+            loadMs, medTTFT, medTotal, medChars, charsPerSec
+        )
+    }
+
+    public static let csvHeader =
+        "timestamp,hardware,backend,load_ms,ttft_ms,total_ms,output_chars,chars_per_sec"
+}
+
+/// Convenience for stamping CSV rows.
+public func isoNow() -> String {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime]
+    return formatter.string(from: Date())
+}
+
+/// Auto-detect a human-readable hardware label via sysctl
+/// (`machdep.cpu.brand_string` returns "Apple M4 Max" etc.). Falls
+/// back to "unknown-mac" when sysctl is unavailable.
+public func autoHardwareLabel() -> String {
+    var size: size_t = 0
+    sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0)
+    guard size > 0 else { return "unknown-mac" }
+    var buffer = [CChar](repeating: 0, count: size)
+    sysctlbyname("machdep.cpu.brand_string", &buffer, &size, nil, 0)
+    return String(cString: buffer)
+}
+
+/// Common CLI output handler. Reads `--csv` and `--csv-append`,
+/// `--hardware <label>` (defaults to autoHardwareLabel()) from the
+/// process args and emits each row in the requested format(s):
+///
+/// - Default (no flags): pretty summaries + markdown rows on stdout.
+/// - `--csv`:             one CSV row per BenchRow on stdout, with
+///                        header on the first line.
+/// - `--csv-append PATH`: append rows to PATH; writes header line
+///                        if PATH doesn't exist yet. Pretty stdout
+///                        output is still emitted alongside.
+public func emitBenchOutput(_ rows: [BenchRow]) {
+    let args = CommandLine.arguments.dropFirst()
+    let csvStdout = args.contains("--csv")
+    var csvPath: String?
+    var hardware = autoHardwareLabel()
+    var it = args.makeIterator()
+    while let arg = it.next() {
+        if arg == "--csv-append", let p = it.next() { csvPath = p }
+        if arg == "--hardware", let h = it.next() { hardware = h }
+    }
+    let timestamp = isoNow()
+
+    if csvStdout {
+        print(BenchRow.csvHeader)
+        for row in rows { print(row.csvRow(hardware: hardware, timestamp: timestamp)) }
+        return  // CSV-only mode — pretty output suppressed for clean piping
+    }
+
+    for row in rows { print(row.summary()) }
+    print()
+    print("Markdown:")
+    for row in rows { print(row.markdownRow()) }
+
+    if let csvPath {
+        print()
+        print("Appending CSV rows to \(csvPath) (hw=\"\(hardware)\")…")
+        for row in rows {
+            do {
+                try appendCSV(row.csvRow(hardware: hardware, timestamp: timestamp), to: csvPath)
+            } catch {
+                FileHandle.standardError.write(Data("CSV append failed: \(error)\n".utf8))
+            }
+        }
+    }
+}
+
+/// Append a row to a CSV file, writing the header line if the file
+/// doesn't exist yet. Used by the `--csv-append <path>` flag so a
+/// shared `docs/BENCHMARKS.csv` can grow with contributions from
+/// other machines without manual editing.
+public func appendCSV(_ row: String, to path: String) throws {
+    let url = URL(fileURLWithPath: path)
+    let exists = FileManager.default.fileExists(atPath: url.path)
+    let payload: String
+    if exists {
+        payload = row + "\n"
+    } else {
+        payload = BenchRow.csvHeader + "\n" + row + "\n"
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        FileManager.default.createFile(atPath: url.path, contents: nil)
+    }
+    let handle = try FileHandle(forWritingTo: url)
+    try handle.seekToEnd()
+    try handle.write(contentsOf: Data(payload.utf8))
+    try handle.close()
 }
 
 private func median<T: Comparable & BinaryFloatingPoint>(_ xs: [T]) -> T {

@@ -54,4 +54,17 @@ $(find ~/Library/Developer/Xcode/DerivedData -name pfm-bench-mlx -path "*Release
 - Output length is uncontrolled — each model decides when to stop. `chars/sec` is *not* the same metric across very different output lengths.
 - CoreML LFM2.5 is a state-space model with a different decode profile than transformer baselines; using `qwen3.5-0.8B` on CoreML (set `--model qwen3.5-0.8B`) gives a more comparable transformer-vs-transformer reading.
 
-PRs that add numbers for other hardware (iPhone, iPad, M-series Macs other than M4 Max, Apple Vision Pro) are very welcome — open one with the raw bench output appended.
+## Contribute your hardware
+
+PRs that add numbers for other hardware (iPhone, iPad, M-series Macs other than M4 Max, Apple Vision Pro) are very welcome. Since v0.10.1, each bench executable accepts `--csv-append <path>` and auto-detects the CPU brand string, so contributing your numbers is one command:
+
+```bash
+swift run -c release pfm-bench-apple  --csv-append docs/BENCHMARKS.csv
+swift run -c release pfm-bench-coreml --csv-append docs/BENCHMARKS.csv --model lfm2.5-350m
+swift run -c release pfm-bench-coreml --csv-append docs/BENCHMARKS.csv --model qwen3.5-0.8B
+# MLX needs xcodebuild (Metal shaders)
+$(find ~/Library/Developer/Xcode/DerivedData -name pfm-bench-mlx -path '*Release*' -type f | head -1) \
+  --csv-append docs/BENCHMARKS.csv
+```
+
+`--hardware "<label>"` overrides the auto-detected CPU brand string (e.g. `"MacBook Pro M4 Max 36GB"`). The full table lives in [`docs/BENCHMARKS.csv`](BENCHMARKS.csv) and grows with each contribution.

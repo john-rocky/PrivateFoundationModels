@@ -41,10 +41,7 @@ func run() async {
     let loadMs = (Double(s) + Double(atto) / 1e18) * 1000
 
     let row = await Bench.runAll(label: "CoreML / ANE (\(modelID))", loadMs: loadMs)
-    print(row.summary())
-    print()
-    print("Markdown:")
-    print(row.markdownRow())
+    emitBenchOutput([row])
 }
 
 await run()

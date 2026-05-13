@@ -18,22 +18,14 @@ func run() async {
     }
 
     // Default useCase — most apps will want this.
-    let (generalLoad, generalRow) = await bench(label: "Apple FM (.general)") {
+    let (_, generalRow) = await bench(label: "Apple FM (.general)") {
         AppleFoundationModel.load()
     }
-    print(generalRow.summary())
-
     // Content-tagging variant exposed in v0.6.1.
-    let (taggingLoad, taggingRow) = await bench(label: "Apple FM (.contentTagging)") {
+    let (_, taggingRow) = await bench(label: "Apple FM (.contentTagging)") {
         AppleFoundationModel.load(useCase: .contentTagging)
     }
-    print(taggingRow.summary())
-
-    _ = (generalLoad, taggingLoad)  // already captured in rows
-    print()
-    print("Markdown:")
-    print(generalRow.markdownRow())
-    print(taggingRow.markdownRow())
+    emitBenchOutput([generalRow, taggingRow])
 }
 
 @available(macOS 26.0, iOS 26.0, visionOS 26.0, *)
