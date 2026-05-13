@@ -35,16 +35,77 @@ public struct ServeOptions: Sendable {
     }
 }
 
+/// Multi-tenant model registry. PFMServer routes each request to a
+/// backend by the request's `model:` field. The first model registered
+/// is the default when the client doesn't specify one (or specifies an
+/// unknown one).
+public final class ModelRegistry: @unchecked Sendable {
+    private struct ChatEntry {
+        let id: String
+        let backend: any LanguageModelBackend
+    }
+    private struct EmbedEntry {
+        let id: String
+        let backend: any EmbeddingBackend
+    }
+
+    private var chat: [ChatEntry] = []
+    private var embed: [EmbedEntry] = []
+    private let lock = NSLock()
+
+    public init() {}
+
+    public func registerChat(id: String, backend: any LanguageModelBackend) {
+        lock.lock(); defer { lock.unlock() }
+        chat.append(ChatEntry(id: id, backend: backend))
+    }
+
+    public func registerEmbedding(id: String, backend: any EmbeddingBackend) {
+        lock.lock(); defer { lock.unlock() }
+        embed.append(EmbedEntry(id: id, backend: backend))
+    }
+
+    fileprivate func resolveChat(_ requested: String?) -> (id: String, backend: any LanguageModelBackend)? {
+        lock.lock(); defer { lock.unlock() }
+        if let requested,
+           let hit = chat.first(where: { $0.id == requested }) {
+            return (hit.id, hit.backend)
+        }
+        guard let first = chat.first else { return nil }
+        return (first.id, first.backend)
+    }
+
+    fileprivate func resolveEmbedding(_ requested: String?) -> (id: String, backend: any EmbeddingBackend)? {
+        lock.lock(); defer { lock.unlock() }
+        if let requested,
+           let hit = embed.first(where: { $0.id == requested }) {
+            return (hit.id, hit.backend)
+        }
+        guard let first = embed.first else { return nil }
+        return (first.id, first.backend)
+    }
+
+    fileprivate func allChatIDs() -> [String] {
+        lock.lock(); defer { lock.unlock() }
+        return chat.map(\.id)
+    }
+
+    fileprivate func allEmbedIDs() -> [String] {
+        lock.lock(); defer { lock.unlock() }
+        return embed.map(\.id)
+    }
+}
+
 public final class PFMServer: @unchecked Sendable {
 
     private let options: ServeOptions
-    private let modelLabel: String
+    private let registry: ModelRegistry
     private let listener: NWListener
     private let queue: DispatchQueue
 
-    public init(options: ServeOptions, modelLabel: String) throws {
+    public init(options: ServeOptions, registry: ModelRegistry) throws {
         self.options = options
-        self.modelLabel = modelLabel
+        self.registry = registry
         self.queue = DispatchQueue(label: "pfm-serve", qos: .userInitiated)
         let params = NWParameters.tcp
         params.allowLocalEndpointReuse = true
@@ -53,6 +114,21 @@ public final class PFMServer: @unchecked Sendable {
             throw POSIXError(.EINVAL)
         }
         self.listener = try NWListener(using: params, on: port)
+    }
+
+    /// Legacy single-model initializer — wraps a one-entry registry so
+    /// existing call sites compile unchanged.
+    public convenience init(options: ServeOptions, modelLabel: String) throws {
+        let registry = ModelRegistry()
+        // Caller is responsible for installing the actual backend via
+        // SystemLanguageModel.default before constructing PFMServer in
+        // this mode; we still register a placeholder id so /v1/models
+        // returns something meaningful.
+        registry.registerChat(id: modelLabel, backend: SystemLanguageModel.default.backend)
+        if let embedder = SystemLanguageModel.defaultEmbedder {
+            registry.registerEmbedding(id: embedder.modelIdentifier, backend: embedder)
+        }
+        try self.init(options: options, registry: registry)
     }
 
     /// Starts the listener and never returns. Cancel the surrounding
@@ -69,12 +145,19 @@ public final class PFMServer: @unchecked Sendable {
         let url = "http://\(options.host):\(options.port)"
         // Use stderr (unbuffered) so the banner shows up immediately
         // even when stdout is redirected to a file.
+        let chatModels = registry.allChatIDs()
+        let embedModels = registry.allEmbedIDs()
+        let modelList = chatModels.isEmpty ? "<none>" : chatModels.joined(separator: ", ")
+        let embedList = embedModels.isEmpty ? "<none>" : embedModels.joined(separator: ", ")
+        let defaultModel = chatModels.first ?? "<no-chat-model>"
         let banner = """
-        [pfm-serve] listening on \(url)  →  model=\(modelLabel)
+        [pfm-serve] listening on \(url)
+        [pfm-serve]   chat models:      \(modelList)
+        [pfm-serve]   embedding models: \(embedList)
         [pfm-serve] curl example:
           curl \(url)/v1/chat/completions \\
             -H 'Content-Type: application/json' \\
-            -d '{"model":"\(modelLabel)","messages":[{"role":"user","content":"Capital of France?"}]}'
+            -d '{"model":"\(defaultModel)","messages":[{"role":"user","content":"Capital of France?"}]}'
 
         """
         FileHandle.standardError.write(Data(banner.utf8))
@@ -202,18 +285,19 @@ public final class PFMServer: @unchecked Sendable {
     }
 
     private func embeddings(_ request: HTTPRequest) async -> HTTPResponse {
-        guard let embedder = SystemLanguageModel.defaultEmbedder else {
-            return HTTPResponse.json(503, [
-                "error": [
-                    "message": "no embedding backend installed. Set SystemLanguageModel.defaultEmbedder before starting the server.",
-                    "type": "pfm_no_embedder",
-                ],
-            ])
-        }
         guard
             let json = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any]
         else {
             return HTTPResponse.json(400, ["error": ["message": "invalid JSON body"]])
+        }
+        let requested = json["model"] as? String
+        guard let (resolvedID, embedder) = registry.resolveEmbedding(requested) else {
+            return HTTPResponse.json(503, [
+                "error": [
+                    "message": "no embedding backend registered. Pass --embedding-model <repo> when starting pfm-serve-mlx, or register an EmbeddingBackend with ModelRegistry.registerEmbedding(...).",
+                    "type": "pfm_no_embedder",
+                ],
+            ])
         }
         let inputs: [String]
         if let single = json["input"] as? String {
@@ -233,7 +317,7 @@ public final class PFMServer: @unchecked Sendable {
             let payload: [String: Any] = [
                 "object": "list",
                 "data": data,
-                "model": embedder.modelIdentifier,
+                "model": resolvedID,
                 "usage": [
                     "prompt_tokens": NSNull(),
                     "total_tokens": NSNull(),
@@ -257,16 +341,23 @@ public final class PFMServer: @unchecked Sendable {
     }
 
     private func modelsList() -> HTTPResponse {
-        let payload: [String: Any] = [
+        let now = Int(Date().timeIntervalSince1970)
+        var data: [[String: Any]] = []
+        for id in registry.allChatIDs() {
+            data.append([
+                "id": id, "object": "model", "created": now, "owned_by": "pfm",
+            ])
+        }
+        for id in registry.allEmbedIDs() {
+            data.append([
+                "id": id, "object": "model", "created": now, "owned_by": "pfm",
+                "purpose": "embedding",
+            ])
+        }
+        return HTTPResponse.json(200, [
             "object": "list",
-            "data": [[
-                "id": modelLabel,
-                "object": "model",
-                "created": Int(Date().timeIntervalSince1970),
-                "owned_by": "pfm",
-            ]],
-        ]
-        return HTTPResponse.json(200, payload)
+            "data": data,
+        ])
     }
 
     private func chatCompletions(
@@ -350,18 +441,35 @@ public final class PFMServer: @unchecked Sendable {
             ])
         }
 
+        // Resolve the chat backend the request asked for (or fall back
+        // to the first-registered one when the field is absent or
+        // points at an unknown id).
+        let requestedModel = json["model"] as? String
+        guard let (resolvedID, resolvedBackend) = registry.resolveChat(requestedModel) else {
+            return HTTPResponse.json(503, [
+                "error": [
+                    "message": "no chat backend registered",
+                    "type": "pfm_no_chat_backend",
+                ],
+            ])
+        }
+        let resolvedModel = SystemLanguageModel(backend: resolvedBackend)
+
         if (json["stream"] as? Bool) == true {
             // SSE — write headers + chunks directly, return nil so
             // dispatch knows the connection is taken.
             await runChatCompletionStreaming(
                 instructions: instructionsText, prompt: prompt,
-                images: collectedImages, json: json, on: connection
+                images: collectedImages, json: json,
+                model: resolvedModel, modelID: resolvedID,
+                on: connection
             )
             return nil
         } else {
             return await runChatCompletion(
                 instructions: instructionsText, prompt: prompt,
-                images: collectedImages, json: json
+                images: collectedImages, json: json,
+                model: resolvedModel, modelID: resolvedID
             )
         }
     }
@@ -373,6 +481,8 @@ public final class PFMServer: @unchecked Sendable {
         prompt: String,
         images: [CGImage],
         json: [String: Any],
+        model: SystemLanguageModel,
+        modelID: String,
         on connection: NWConnection
     ) async {
         let session: LanguageModelSession
@@ -396,9 +506,9 @@ public final class PFMServer: @unchecked Sendable {
                 : "\(resolvedInstructions)\n\n\(strictness)"
         }
         if resolvedInstructions.isEmpty {
-            session = LanguageModelSession()
+            session = LanguageModelSession(model: model)
         } else {
-            session = LanguageModelSession(instructions: Instructions(resolvedInstructions))
+            session = LanguageModelSession(model: model, instructions: Instructions(resolvedInstructions))
         }
         let temperature = (json["temperature"] as? Double)
         let maxTokens = (json["max_tokens"] as? Int) ?? (json["max_completion_tokens"] as? Int)
@@ -423,7 +533,8 @@ public final class PFMServer: @unchecked Sendable {
 
         // Initial role chunk so clients see the assistant turn start.
         send(chunk: chunkPayload(id: id, created: created,
-                                  role: "assistant", content: nil, finish: nil),
+                                  role: "assistant", content: nil, finish: nil,
+                                  modelID: modelID),
              on: connection)
 
         do {
@@ -452,18 +563,20 @@ public final class PFMServer: @unchecked Sendable {
                     // Chunk 1: tool_call metadata + empty args (matches
                     // OpenAI's first delta when the tool starts).
                     send(chunk: toolCallChunkOpener(id: id, created: created,
-                                                     callID: callID, name: call.name),
+                                                     callID: callID, name: call.name,
+                                                     modelID: modelID),
                          on: connection)
                     // Chunk 2: full arguments in one delta. Clients
                     // accumulate the arguments string until
                     // finish_reason fires.
                     send(chunk: toolCallChunkArguments(id: id, created: created,
-                                                        arguments: call.arguments),
+                                                        arguments: call.arguments,
+                                                        modelID: modelID),
                          on: connection)
                     // Chunk 3: end.
                     send(chunk: chunkPayload(id: id, created: created,
                                               role: nil, content: nil,
-                                              finish: "tool_calls"),
+                                              finish: "tool_calls", modelID: modelID),
                          on: connection)
                 } else {
                     // Model answered directly — emit the buffered text
@@ -471,11 +584,12 @@ public final class PFMServer: @unchecked Sendable {
                     if !lastContent.isEmpty {
                         send(chunk: chunkPayload(id: id, created: created,
                                                   role: nil, content: lastContent,
-                                                  finish: nil),
+                                                  finish: nil, modelID: modelID),
                              on: connection)
                     }
                     send(chunk: chunkPayload(id: id, created: created,
-                                              role: nil, content: nil, finish: "stop"),
+                                              role: nil, content: nil, finish: "stop",
+                                              modelID: modelID),
                          on: connection)
                 }
             } else {
@@ -487,12 +601,14 @@ public final class PFMServer: @unchecked Sendable {
                         let delta = String(text.suffix(text.count - lastLen))
                         lastLen = text.count
                         send(chunk: chunkPayload(id: id, created: created,
-                                                  role: nil, content: delta, finish: nil),
+                                                  role: nil, content: delta, finish: nil,
+                                                  modelID: modelID),
                              on: connection)
                     }
                 }
                 send(chunk: chunkPayload(id: id, created: created,
-                                          role: nil, content: nil, finish: "stop"),
+                                          role: nil, content: nil, finish: "stop",
+                                          modelID: modelID),
                      on: connection)
             }
         } catch {
@@ -677,13 +793,13 @@ public final class PFMServer: @unchecked Sendable {
     /// Matches the first delta OpenAI sends when a function call
     /// starts streaming.
     private func toolCallChunkOpener(
-        id: String, created: Int, callID: String, name: String
+        id: String, created: Int, callID: String, name: String, modelID: String
     ) -> [String: Any] {
         [
             "id": id,
             "object": "chat.completion.chunk",
             "created": created,
-            "model": modelLabel,
+            "model": modelID,
             "choices": [[
                 "index": 0,
                 "delta": [
@@ -703,13 +819,13 @@ public final class PFMServer: @unchecked Sendable {
     /// Second tool-call chunk: only `function.arguments` (delta-style
     /// string concatenated by the client).
     private func toolCallChunkArguments(
-        id: String, created: Int, arguments: String
+        id: String, created: Int, arguments: String, modelID: String
     ) -> [String: Any] {
         [
             "id": id,
             "object": "chat.completion.chunk",
             "created": created,
-            "model": modelLabel,
+            "model": modelID,
             "choices": [[
                 "index": 0,
                 "delta": [
@@ -725,7 +841,8 @@ public final class PFMServer: @unchecked Sendable {
 
     private func chunkPayload(
         id: String, created: Int,
-        role: String?, content: String?, finish: String?
+        role: String?, content: String?, finish: String?,
+        modelID: String
     ) -> [String: Any] {
         var delta: [String: Any] = [:]
         if let role { delta["role"] = role }
@@ -734,7 +851,7 @@ public final class PFMServer: @unchecked Sendable {
             "id": id,
             "object": "chat.completion.chunk",
             "created": created,
-            "model": modelLabel,
+            "model": modelID,
             "choices": [[
                 "index": 0,
                 "delta": delta,
@@ -755,7 +872,9 @@ public final class PFMServer: @unchecked Sendable {
         instructions: String,
         prompt: String,
         images: [CGImage],
-        json: [String: Any]
+        json: [String: Any],
+        model: SystemLanguageModel,
+        modelID: String
     ) async -> HTTPResponse {
         let session: LanguageModelSession
         let baseInstructions = instructions
@@ -779,9 +898,9 @@ public final class PFMServer: @unchecked Sendable {
                 : "\(resolvedInstructions)\n\n\(strictness)"
         }
         if resolvedInstructions.isEmpty {
-            session = LanguageModelSession()
+            session = LanguageModelSession(model: model)
         } else {
-            session = LanguageModelSession(instructions: Instructions(resolvedInstructions))
+            session = LanguageModelSession(model: model, instructions: Instructions(resolvedInstructions))
         }
         let temperature = (json["temperature"] as? Double)
         let maxTokens = (json["max_tokens"] as? Int) ?? (json["max_completion_tokens"] as? Int)
@@ -809,7 +928,7 @@ public final class PFMServer: @unchecked Sendable {
                     "id": "chatcmpl-\(UUID().uuidString)",
                     "object": "chat.completion",
                     "created": Int(Date().timeIntervalSince1970),
-                    "model": modelLabel,
+                    "model": modelID,
                     "choices": [[
                         "index": 0,
                         "message": [
@@ -846,7 +965,7 @@ public final class PFMServer: @unchecked Sendable {
                 "id": "chatcmpl-\(UUID().uuidString)",
                 "object": "chat.completion",
                 "created": Int(Date().timeIntervalSince1970),
-                "model": modelLabel,
+                "model": modelID,
                 "choices": [[
                     "index": 0,
                     "message": [

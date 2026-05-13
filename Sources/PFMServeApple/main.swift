@@ -12,7 +12,7 @@ import PFMServeKit
 import PrivateFoundationModels
 import PrivateFoundationModelsApple
 
-func arg(after flag: String) -> String? {
+func argSingle(_ flag: String) -> String? {
     var it = CommandLine.arguments.dropFirst().makeIterator()
     while let arg = it.next() {
         if arg == flag { return it.next() }
@@ -28,16 +28,27 @@ func run() async {
         ))
         exit(2)
     }
-    let port = UInt16(arg(after: "--port") ?? "") ?? 11434
-    let host = arg(after: "--host") ?? "127.0.0.1"
+    let port = UInt16(argSingle("--port") ?? "") ?? 11434
+    let host = argSingle("--host") ?? "127.0.0.1"
+    let useCase = argSingle("--use-case") ?? "general"  // general | contentTagging
+    let modelID: String
+    let backend: AppleFoundationModelBackend
+    switch useCase.lowercased() {
+    case "contenttagging", "content-tagging", "tagging":
+        modelID = "apple-fm-content-tagging"
+        backend = AppleFoundationModel.load(useCase: .contentTagging)
+    default:
+        modelID = "apple-fm"
+        backend = AppleFoundationModel.load()
+    }
 
-    let backend = AppleFoundationModel.load()
-    SystemLanguageModel.default = SystemLanguageModel(backend: backend)
+    let registry = ModelRegistry()
+    registry.registerChat(id: modelID, backend: backend)
 
     do {
         let server = try PFMServer(
             options: ServeOptions(host: host, port: port),
-            modelLabel: "apple-fm"
+            registry: registry
         )
         try await server.runForever()
     } catch {
