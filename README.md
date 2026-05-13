@@ -395,6 +395,10 @@ If you find a method or initializer in Apple's docs that PFM doesn't ship, pleas
 
 ---
 
+## Tutorial
+
+New here? Read the [5-minute walkthrough](docs/TUTORIAL.md). It takes you from `swift package init` to streaming `@Generable` output through Apple's native model.
+
 ## FAQ
 
 Common questions in [`docs/FAQ.md`](docs/FAQ.md). Highlights:
