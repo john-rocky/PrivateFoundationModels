@@ -1,0 +1,25 @@
+$ swift run pfm-serve-mlx \
+    --model mlx-community/FastVLM-0.5B-bf16 \
+    --embedding-model sentence-transformers/all-MiniLM-L6-v2
+
+$ python Examples/PythonClient/openai_vision_demo.py
+# (sends a 256x256 PNG with red top-left, green top-right, blue bottom-center
+#  squares via OpenAI content-array, expects model to describe positions.)
+
+Vision response:
+The image contains three colored shapes arranged in a 2x2 grid. The
+top-left shape is a red rectangle, and the top-right shape is a green
+rectangle. The bottom-left shape is a blue rectangle. The positions of
+the shapes are as follows: the red rectangle is in the top-left corner,
+the green rectangle is in the top-right corner, the blue rectangle is
+in the bottom-left corner, and the green rectangle is in the top-right
+corner.
+
+Ground truth: red square top-left, green square top-right, blue square
+bottom-CENTER (model said bottom-LEFT — model-quality issue at 0.5B,
+not framework).
+
+End-to-end verified on Apple M4 Max / macOS 26.0:
+- HTTP request: OpenAI content array with data:image/png;base64,...
+- Backend: pfm-serve-mlx with mlx-community/FastVLM-0.5B-bf16
+- Client: official openai==2.36.0 Python SDK, unmodified

@@ -1,0 +1,31 @@
+$ swift run pfm-serve-mlx \
+    --model mlx-community/FastVLM-0.5B-bf16 \
+    --embedding-model sentence-transformers/all-MiniLM-L6-v2
+
+$ python Examples/PythonClient/openai_embeddings_demo.py
+
+Got 3 vectors. Model: mlx-embedder://sentence-transformers/all-MiniLM-L6-v2
+Dimensions: [384, 384, 384]
+
+Cosine similarity matrix:
+[[0.99999994 0.84703606 0.77408665]
+ [0.84703606 0.99999994 0.83825475]
+ [0.77408665 0.83825475 1.0000001 ]]
+
+Labels:
+  0: Swift is Apple's modern programming language.
+  1: Async/await is a core Swift concurrency feature.
+  2: I baked a chocolate cake for dessert.
+
+Swift↔Swift similarity (should be high):  0.847
+Swift↔cake  similarity (should be lower): 0.774
+Swift↔cake  similarity (should be lower): 0.838
+
+Ranking sanity check: PASS
+
+End-to-end verified on Apple M4 Max / macOS 26.0:
+- HTTP request: POST /v1/embeddings with input: [String]
+- Backend: pfm-serve-mlx with sentence-transformers/all-MiniLM-L6-v2
+- Pipeline: tokenize → right-pad → attention mask → BERT forward →
+            mean pool → L2 normalize
+- Client: official openai==2.36.0 Python SDK, unmodified

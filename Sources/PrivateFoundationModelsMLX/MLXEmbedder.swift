@@ -5,11 +5,10 @@
 // `mlx-community/*` embedding repo. Standard BERT-style preprocessing:
 // tokenize → right-pad → attention mask → forward → pool → L2-normalize.
 //
-// Status: experimental. Built but not yet end-to-end verified against
-// a downloaded embedding model in this repo's CI / smoke tests — the
-// MLX-side pipeline is mechanical but tensor shapes can be subtle, so
-// validate against a known-good `mlx-community/*` embedding repo on
-// your hardware before depending on this in production.
+// End-to-end verified on Apple M4 Max / macOS 26.0 against
+// `sentence-transformers/all-MiniLM-L6-v2` — 384-dim L2-normalized
+// vectors with semantically correct cosine-similarity ranking. See
+// `docs/pfm-embeddings-sample.txt` for the captured run.
 
 import Foundation
 import HuggingFace

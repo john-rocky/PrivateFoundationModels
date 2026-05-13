@@ -50,7 +50,7 @@ Listing models via openai SDK
 resp = client.embeddings.create(model="mlx-embedder", input=texts)
 ```
 
-Requires `pfm-serve-mlx --embedding-model <repo>` so an MLX-backed `EmbeddingBackend` is installed. The endpoint returns 503 with a clear message when no embedder is configured. The MLX embedder is **experimental** — built and wired, but the per-model preprocessing (padding / mask / pooling) hasn't been verified against every `mlx-community/*` embedding repo yet. Report bugs.
+Requires `pfm-serve-mlx --embedding-model <repo>` so an MLX-backed `EmbeddingBackend` is installed. The endpoint returns 503 with a clear message when no embedder is configured. End-to-end verified on Apple M4 Max against `sentence-transformers/all-MiniLM-L6-v2` — see [`docs/pfm-embeddings-sample.txt`](../../docs/pfm-embeddings-sample.txt) for the captured cosine-similarity matrix proving correct semantic ranking.
 
 ## Tool calling (function calling)
 

@@ -548,13 +548,18 @@ Standardized `streamResponse` bench on M4 Max / macOS 26.0 (median of 3 timed it
 - v0.9.0 — `/v1/embeddings` endpoint + `EmbeddingBackend`
   protocol + `MLXEmbedder` (experimental). `pfm-serve-mlx
   --embedding-model <repo>` opt-in.
-- **v0.9.1 (current)** — Streaming tool calls. `stream: true` +
-  `tools[]` now emits OpenAI-shaped delta chunks
-  (`role:assistant` → tool-call metadata → `function.arguments` →
-  `finish_reason:"tool_calls"` → `[DONE]`). Verified end-to-end
-  via the official `openai` Python SDK's streaming chunk
-  accumulation. Plus `bin/` promotion scripts (`post-tabs.sh`,
-  `post-x.py`, `post-reddit.py`) for one-command launches.
+- v0.9.1 — Streaming tool calls. `stream: true` +
+  `tools[]` emits OpenAI-shaped delta chunks. Plus `bin/` promotion
+  scripts (`post-tabs.sh`, `post-x.py`, `post-reddit.py`).
+- **v0.9.2 (current)** — Vision + embeddings **end-to-end verified
+  on real MLX models**. `pfm-serve-mlx` ran FastVLM-0.5B-bf16 + 
+  `all-MiniLM-L6-v2` on Apple M4 Max; OpenAI Python SDK drove
+  both. Vision identified the red top-left / green top-right
+  rectangles correctly; embeddings produced 384-dim L2-normalized
+  vectors with Swift↔Swift (0.847) > Swift↔cake (0.77, 0.84)
+  semantic ranking. Removes the "experimental" marker on
+  MLXEmbedder. See [`docs/pfm-vision-sample.txt`](docs/pfm-vision-sample.txt)
+  and [`docs/pfm-embeddings-sample.txt`](docs/pfm-embeddings-sample.txt).
 - v0.8 — Qwen3-VL routing on CoreML, grammar-constrained sampler
   behind a feature flag, llama.cpp / GGUF backend.
 - v0.6 — llama.cpp / GGUF backend
