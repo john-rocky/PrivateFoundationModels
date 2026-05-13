@@ -6,7 +6,9 @@ Each link below opens the target platform's compose form **with the title, body,
 
 ## 1. X (recommended first move)
 
-[**→ Post the v0.9 launch tweet on X**](https://twitter.com/intent/tweet?text=PrivateFoundationModels%20v0.9%20ships.%0A%0AApple%20Intelligence%20behind%20an%20OpenAI-compatible%20local%20API.%20All%20four%20surfaces%3A%0A%0A%C2%B7%20chat%20completions%20%28%2B%20streaming%20SSE%29%0A%C2%B7%20tool%20calling%20%28round-trip%20via%20official%20openai%20SDK%29%0A%C2%B7%20vision%20%28data%3Aimage%20base64%20content%20arrays%29%0A%C2%B7%20embeddings%0A%0AThe%20official%20openai%20Python%20SDK%20works%20unchanged.%20Two-line%20swap%3A%0A%0A%20%20client%20%3D%20OpenAI%28%0A%20%20%20%20%20%20base_url%3D%22http%3A%2F%2F127.0.0.1%3A11434%2Fv1%22%2C%0A%20%20%20%20%20%20api_key%3D%22x%22%29%0A%0Ahttps%3A%2F%2Fgithub.com%2Fjohn-rocky%2FPrivateFoundationModels)
+[**→ Post the v0.9 launch tweet on X**](https://twitter.com/intent/tweet?text=PrivateFoundationModels%20v0.9%20%E2%80%94%20Apple%20Intelligence%20behind%20an%20OpenAI-compatible%20local%20API.%0A%0AThe%20official%20openai%20SDK%20works%20unchanged%3A%0Aclient%20%3D%20OpenAI%28base_url%3D%22http%3A%2F%2F127.0.0.1%3A11434%2Fv1%22%29%0A%0A%E2%9C%93%20chat%20%28SSE%29%0A%E2%9C%93%20tools%0A%E2%9C%93%20vision%0A%E2%9C%93%20embeddings%0A%0Agithub.com%2Fjohn-rocky%2FPrivateFoundationModels)
+
+(253字 / 280字, X 無料枠ぴったり。)
 
 Attach a 8-15 second screen-record of `Examples/PythonClient/openai_tools_demo.py` running — that's the most credible visual we have (the OpenAI SDK calling Apple's on-device model + invoking a Swift-defined tool round-trip).
 

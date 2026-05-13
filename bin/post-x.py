@@ -19,21 +19,17 @@ Dry-run mode (no creds set) prints what it WOULD post, then exits 0.
 import os
 import sys
 
-DEFAULT_TWEET = """PrivateFoundationModels v0.9 ships.
+DEFAULT_TWEET = """PrivateFoundationModels v0.9 — Apple Intelligence behind an OpenAI-compatible local API.
 
-Apple Intelligence behind an OpenAI-compatible local API. All four surfaces:
-· chat completions (+ streaming SSE)
-· tool calling (round-trip via official openai SDK)
-· vision (data:image base64 content arrays)
-· embeddings
+The official openai SDK works unchanged:
+client = OpenAI(base_url="http://127.0.0.1:11434/v1")
 
-The official openai Python SDK works unchanged. Two-line swap:
+✓ chat (SSE)
+✓ tools
+✓ vision
+✓ embeddings
 
-  client = OpenAI(
-      base_url="http://127.0.0.1:11434/v1",
-      api_key="x")
-
-https://github.com/john-rocky/PrivateFoundationModels"""
+github.com/john-rocky/PrivateFoundationModels"""
 
 
 def main() -> int:
