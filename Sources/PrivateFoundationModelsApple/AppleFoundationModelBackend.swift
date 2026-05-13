@@ -103,10 +103,11 @@ public final class AppleFoundationModelBackend: LanguageModelBackend, @unchecked
         schema: PrivateFoundationModels.GenerationSchema?,
         tools: [PrivateFoundationModels.AnyTool]
     ) async throws -> BackendGeneration {
-        try guardUnsupported(tools: tools)
         let prepared = Self.prepare(transcript: transcript)
+        let appleTools = Self.appleAdapters(from: tools)
         let session = FoundationModels.LanguageModelSession(
             model: appleModel,
+            tools: appleTools,
             transcript: prepared.history
         )
         let appleOptions = Self.toAppleOptions(options)
@@ -131,6 +132,11 @@ public final class AppleFoundationModelBackend: LanguageModelBackend, @unchecked
             }
         } catch is CancellationError {
             throw GenerationError.cancelled
+        } catch let e as FoundationModels.LanguageModelSession.ToolCallError {
+            // Apple wraps the tool's thrown error one level deep. Unwrap
+            // so PFM callers see exactly the error their tool threw, the
+            // same way the CoreML / MLX backends surface it.
+            throw GenerationError.backend(e.underlyingError)
         } catch {
             throw GenerationError.backend(error)
         }
@@ -147,8 +153,7 @@ public final class AppleFoundationModelBackend: LanguageModelBackend, @unchecked
         AsyncThrowingStream { continuation in
             let task = Task { [self] in
                 do {
-                    try guardUnsupported(tools: tools)
-                    let prepared = Self.prepare(transcript: transcript)
+                                let prepared = Self.prepare(transcript: transcript)
                     let session = FoundationModels.LanguageModelSession(
                         model: appleModel,
                         transcript: prepared.history
@@ -190,6 +195,8 @@ public final class AppleFoundationModelBackend: LanguageModelBackend, @unchecked
                     continuation.finish(throwing: GenerationError.cancelled)
                 } catch let error as GenerationError {
                     continuation.finish(throwing: error)
+                } catch let e as FoundationModels.LanguageModelSession.ToolCallError {
+                    continuation.finish(throwing: GenerationError.backend(e.underlyingError))
                 } catch {
                     continuation.finish(throwing: GenerationError.backend(error))
                 }
@@ -200,17 +207,22 @@ public final class AppleFoundationModelBackend: LanguageModelBackend, @unchecked
 
     // MARK: - Helpers
 
-    private func guardUnsupported(
-        tools: [PrivateFoundationModels.AnyTool]
-    ) throws {
-        if !tools.isEmpty {
-            throw GenerationError.backend(NSError(
-                domain: "PrivateFoundationModelsApple",
-                code: 2,
-                userInfo: [NSLocalizedDescriptionKey:
-                    "AppleFoundationModelBackend does not cross-translate Tool types yet (planned for v0.5). Use the CoreML or MLX backend for tool calling today."]
-            ))
-        }
+    /// Build Apple `Tool` adapters from the PFM tool list so Apple's
+    /// session can drive its own tool loop. The adapters route each
+    /// `call(arguments:)` invocation back through PFM's `AnyTool.invoke`,
+    /// which JSON-decodes the arguments and calls the user's
+    /// `func call(arguments: Arguments)` exactly as on the CoreML / MLX
+    /// backends. Apple's session handles the loop internally; the final
+    /// text response is what we return as `BackendGeneration.text`.
+    ///
+    /// One caveat: PFM's transcript will not contain intermediate
+    /// `.toolCall` / `.toolOutput` entries for the Apple backend (Apple's
+    /// loop is opaque to us), only the final `.response`. Tools still run
+    /// and their outputs still influence the answer.
+    private static func appleAdapters(
+        from pfmTools: [PrivateFoundationModels.AnyTool]
+    ) -> [any FoundationModels.Tool] {
+        pfmTools.map { PFMToolAdapter(anyTool: $0) }
     }
 
     // MARK: - Schema translation
@@ -220,7 +232,7 @@ public final class AppleFoundationModelBackend: LanguageModelBackend, @unchecked
     /// `FoundationModels.GenerationSchema(root:dependencies:)` so we can
     /// invoke `session.respond(to:schema:)` without our types having to
     /// conform to Apple's `Generable` protocol.
-    private static func pfmSchemaToDynamic(
+    static func pfmSchemaToDynamic(
         _ schema: PrivateFoundationModels.GenerationSchema,
         name: String
     ) -> FoundationModels.DynamicGenerationSchema {
@@ -265,7 +277,7 @@ public final class AppleFoundationModelBackend: LanguageModelBackend, @unchecked
 
     /// Render an Apple `GeneratedContent` value as a JSON string so PFM's
     /// existing `Generable` decoder can consume it.
-    private static func generatedContentToJSON(
+    static func generatedContentToJSON(
         _ content: FoundationModels.GeneratedContent
     ) -> String {
         let any = generatedContentToAny(content)
@@ -376,6 +388,43 @@ public final class AppleFoundationModelBackend: LanguageModelBackend, @unchecked
             }
             return .greedy
         }
+    }
+}
+
+// MARK: - PFM Tool → Apple Tool adapter
+
+@available(iOS 26.0, macOS 26.0, visionOS 26.0, *)
+struct PFMToolAdapter: FoundationModels.Tool {
+    typealias Arguments = FoundationModels.GeneratedContent
+    typealias Output = String
+
+    let anyTool: PrivateFoundationModels.AnyTool
+
+    var name: String { anyTool.name }
+    var description: String { anyTool.description }
+
+    var parameters: FoundationModels.GenerationSchema {
+        let root = AppleFoundationModelBackend.pfmSchemaToDynamic(
+            anyTool.argumentsSchema,
+            name: "\(anyTool.name)_args"
+        )
+        if let schema = try? FoundationModels.GenerationSchema(
+            root: root, dependencies: []
+        ) {
+            return schema
+        }
+        // Fallback: empty object schema so the tool is still callable.
+        let empty = FoundationModels.DynamicGenerationSchema(
+            name: "\(anyTool.name)_args",
+            description: nil,
+            properties: []
+        )
+        return (try? FoundationModels.GenerationSchema(root: empty, dependencies: []))!
+    }
+
+    func call(arguments: FoundationModels.GeneratedContent) async throws -> String {
+        let json = AppleFoundationModelBackend.generatedContentToJSON(arguments)
+        return try await anyTool.invoke(json)
     }
 }
 

@@ -1,7 +1,7 @@
 // pfm-apple-deep — same scenario matrix as pfm-deep / pfm-mlx-deep,
 // routed through Apple's native FoundationModels via the PFM
-// passthrough backend. Tool scenarios are skipped: cross-protocol
-// Tool bridging is queued for v0.5.
+// passthrough backend. All three phases run (Generable, Tools,
+// Multimodal+PromptBuilder).
 //
 //   swift run -c release pfm-apple-deep
 
@@ -28,8 +28,7 @@ func run() async {
     SystemLanguageModel.default = SystemLanguageModel(backend: backend)
 
     var runner = DeepRunner()
-    await runner.runGenerableScenarios()
-    await runner.runMultimodalScenarios()
+    await runner.runAll()
     runner.summarize()
 }
 
