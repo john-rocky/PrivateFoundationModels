@@ -1,5 +1,7 @@
 # Same model, different runtimes — Qwen3.5-0.8B on Apple M4 Max
 
+![PrivateFoundationModels runtime comparison on Apple M4 Max](media/runtime-comparison-m4max.png)
+
 PFM exposes one Apple-FM-shaped surface and routes generation to whichever runtime you install — Apple's native FoundationModels, CoreML on the Apple Neural Engine, or MLX on Apple Silicon GPU. **Same call site, same prompt, very different latency / throughput.**
 
 This page benches `Qwen3.5-0.8B` on the two runtimes that ship it (CoreML + MLX), plus Apple's native 3 B model and CoreML LFM2.5-350M as reference points. All numbers from `swift run -c release pfm-bench-*` on Apple M4 Max / macOS 26.0 / Xcode 26.1.1, release build, median of 3 timed iterations after one untimed warmup.

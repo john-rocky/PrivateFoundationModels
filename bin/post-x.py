@@ -19,15 +19,12 @@ Dry-run mode (no creds set) prints what it WOULD post, then exits 0.
 import os
 import sys
 
-DEFAULT_TWEET = """PrivateFoundationModels v0.9 — Apple Intelligence behind an OpenAI-compatible local API.
+DEFAULT_TWEET = """Same Qwen3.5-0.8B model. Same prompt. Apple M4 Max.
 
-The official openai SDK works unchanged:
-client = OpenAI(base_url="http://127.0.0.1:11434/v1")
+· CoreML / ANE  — 526 ms TTFT, 158 chars/sec
+· MLX / GPU 4b  — 43 ms TTFT, 781 chars/sec
 
-✓ chat (SSE)
-✓ tools
-✓ vision
-✓ embeddings
+12× TTFT, 5× throughput. One PrivateFoundationModels call site routes between them.
 
 github.com/john-rocky/PrivateFoundationModels"""
 

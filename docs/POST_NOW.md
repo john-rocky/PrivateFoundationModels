@@ -6,6 +6,14 @@ Each link below opens the target platform's compose form **with the title, body,
 
 ## 1. X (recommended first move)
 
+### v0.10.2 — runtime comparison hook (recommended for follow-up tweet)
+
+[**→ Post the runtime-comparison tweet on X**](https://twitter.com/intent/tweet?text=Same%20Qwen3.5-0.8B%20model.%20Same%20prompt.%20Apple%20M4%20Max.%0A%0A%C2%B7%20CoreML%20%2F%20ANE%20%20%E2%80%94%20526%20ms%20TTFT%2C%20158%20chars%2Fsec%0A%C2%B7%20MLX%20%2F%20GPU%204b%20%20%E2%80%94%2043%20ms%20TTFT%2C%20781%20chars%2Fsec%0A%0A12%C3%97%20TTFT%2C%205%C3%97%20throughput.%20One%20PrivateFoundationModels%20call%20site%20routes%20between%20them.%0A%0Agithub.com%2Fjohn-rocky%2FPrivateFoundationModels)
+
+(251字 / 280字。 attach: [`docs/media/runtime-comparison-m4max.png`](media/runtime-comparison-m4max.png) — the bar-chart PNG is the punch.)
+
+### v0.9 surface hook (original)
+
 [**→ Post the v0.9 launch tweet on X**](https://twitter.com/intent/tweet?text=PrivateFoundationModels%20v0.9%20%E2%80%94%20Apple%20Intelligence%20behind%20an%20OpenAI-compatible%20local%20API.%0A%0AThe%20official%20openai%20SDK%20works%20unchanged%3A%0Aclient%20%3D%20OpenAI%28base_url%3D%22http%3A%2F%2F127.0.0.1%3A11434%2Fv1%22%29%0A%0A%E2%9C%93%20chat%20%28SSE%29%0A%E2%9C%93%20tools%0A%E2%9C%93%20vision%0A%E2%9C%93%20embeddings%0A%0Agithub.com%2Fjohn-rocky%2FPrivateFoundationModels)
 
 (253字 / 280字, X 無料枠ぴったり。)
