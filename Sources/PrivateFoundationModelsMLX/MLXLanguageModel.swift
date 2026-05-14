@@ -81,4 +81,88 @@ public enum MLXLanguageModel {
         onProgress?("Loaded \(model.id)")
         return MLXBackend(container: container, modelIdentifier: "mlx://\(model.id)")
     }
+
+    /// Where a LoRA / DoRA adapter lives. The directory — local, or
+    /// downloaded from HuggingFace — must contain the layout
+    /// `mlx_lm.lora` produces: an `adapter_config.json` (with a
+    /// `fine_tune_type` of `"lora"` or `"dora"`) plus the adapter
+    /// `*.safetensors` weights.
+    public enum Adapter: Sendable {
+        /// A local directory of adapter files.
+        case directory(URL)
+        /// A HuggingFace repo id holding the adapter; downloaded on
+        /// first use, cached afterwards.
+        case huggingFace(String, revision: String = "main")
+
+        var identifier: String {
+            switch self {
+            case .directory(let url):       return url.lastPathComponent
+            case .huggingFace(let repo, _): return repo
+            }
+        }
+
+        var configuration: ModelConfiguration {
+            switch self {
+            case .directory(let url):
+                return ModelConfiguration(directory: url)
+            case .huggingFace(let repo, let revision):
+                return ModelConfiguration(id: repo, revision: revision)
+            }
+        }
+    }
+
+    /// Load a base model and apply a LoRA / DoRA adapter on top, then
+    /// wrap the result as a `LanguageModelBackend`. The adapter is
+    /// applied into the model's layers in memory — the same
+    /// `LanguageModelSession.respond(...)` call site then runs the
+    /// fine-tuned model with no further changes.
+    ///
+    /// ```swift
+    /// SystemLanguageModel.default = SystemLanguageModel(
+    ///     backend: try await MLXLanguageModel.load(
+    ///         .custom("mlx-community/Qwen3-4B-4bit"),
+    ///         adapter: .huggingFace("my-org/qwen3-support-lora")
+    ///     )
+    /// )
+    /// ```
+    public static func load(
+        _ model: Catalog,
+        adapter: Adapter,
+        onProgress: (@Sendable (String) -> Void)? = nil
+    ) async throws -> MLXBackend {
+        onProgress?("Resolving \(model.id)…")
+        let hub = #hubDownloader()
+        let loader = #huggingFaceTokenizerLoader()
+        let container = try await loadModelContainer(
+            from: hub,
+            using: loader,
+            id: model.id,
+            progressHandler: { progress in
+                onProgress?(String(format: "Downloading base %.0f%%",
+                                     progress.fractionCompleted * 100))
+            }
+        )
+
+        onProgress?("Resolving adapter \(adapter.identifier)…")
+        let modelAdapter = try await ModelAdapterFactory.shared.load(
+            from: hub,
+            configuration: adapter.configuration,
+            progressHandler: { progress in
+                onProgress?(String(format: "Downloading adapter %.0f%%",
+                                     progress.fractionCompleted * 100))
+            }
+        )
+
+        // Apply the adapter into the model's layers in place. Every
+        // later `perform` on this container sees the adapted weights.
+        try await container.perform { (context: ModelContext) in
+            try context.model.load(adapter: modelAdapter)
+        }
+
+        onProgress?("Applied adapter \(adapter.identifier)")
+        return MLXBackend(
+            container: container,
+            modelIdentifier: "mlx://\(model.id)+adapter:\(adapter.identifier)"
+        )
+    }
 }

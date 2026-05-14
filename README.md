@@ -155,6 +155,25 @@ Plus 6 captured runs through the openai Python SDK driving the HTTP server — c
 
 `LanguageModelBackend` is two methods (`generate` + `streamGenerate`) plus an availability property. Route to llama.cpp, a remote API, your own runtime — see [`Sources/PrivateFoundationModels/LanguageModelBackend.swift`](Sources/PrivateFoundationModels/LanguageModelBackend.swift).
 
+## Bring your own fine-tune (LoRA adapters)
+
+Run your own LoRA / DoRA adapter through the same `LanguageModelSession` call site. On the MLX backend the adapter is applied to the base model in memory — no merge step:
+
+```swift
+import PrivateFoundationModelsMLX
+
+SystemLanguageModel.default = SystemLanguageModel(
+    backend: try await MLXLanguageModel.load(
+        .custom("mlx-community/Qwen3-4B-4bit"),
+        adapter: .huggingFace("my-org/qwen3-support-lora")   // or .directory(localURL)
+    )
+)
+// Everything below is byte-identical to a non-adapted session.
+let session = LanguageModelSession(instructions: "You are our support bot.")
+```
+
+The adapter dir is the standard `mlx_lm.lora` layout — `adapter_config.json` + `*.safetensors`. CoreML fine-tunes are merged at conversion time and load through `CoreMLLanguageModel.load(localBundle:)`; Apple FM adapters through `AppleFoundationModel.load(adapter:)`.
+
 ## Compatibility with `FoundationModels`
 
 PFM mirrors Apple's FoundationModels API surface as of WWDC 2025 / iOS 26.1:

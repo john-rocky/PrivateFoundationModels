@@ -6,6 +6,33 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-05-15
+
+### Added
+- **LoRA / DoRA adapter loading on the MLX backend.**
+  `MLXLanguageModel.load(_:adapter:)` loads a base model and applies
+  a fine-tuned adapter on top, in memory — the same
+  `LanguageModelSession.respond(...)` call site then runs the
+  adapted model with no other changes.
+  - `MLXLanguageModel.Adapter` — `.directory(URL)` for a local
+    adapter dir, `.huggingFace(repo, revision:)` to download one.
+    Either must hold the `mlx_lm.lora` layout: `adapter_config.json`
+    (`fine_tune_type` = `"lora"` / `"dora"`) plus `*.safetensors`.
+  - Backed by mlx-swift-lm's `ModelAdapterFactory` +
+    `LanguageModel.load(adapter:)`. The adapter is applied into the
+    container's model layers, so every later generation uses it.
+  - `modelIdentifier` becomes `mlx://<base>+adapter:<id>` so logs
+    and multi-model routing can tell an adapted backend apart.
+
+### Notes
+- CoreML adapters work differently and need no new API: CoreML-LLM
+  has no runtime adapter-apply step, so a fine-tuned CoreML model
+  is **merged into the weights at conversion time** and shipped as
+  a standalone bundle. Load it with the existing
+  `CoreMLLanguageModel.load(localBundle:)` — see the doc comment
+  there. Apple FM adapters were already supported via
+  `AppleFoundationModel.load(adapter:)`.
+
 ## [0.10.8] — 2026-05-14
 
 ### Added

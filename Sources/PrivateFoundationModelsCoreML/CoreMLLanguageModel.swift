@@ -222,6 +222,15 @@ public enum CoreMLLanguageModel {
     /// expects for the underlying architecture — typically `chunk*.mlmodelc`
     /// (or `.mlpackage`), an `hf_model/` tokenizer dir, and any per-model
     /// weight bins / npy tables alongside `model_config.json`.
+    ///
+    /// ## Adapters / LoRA
+    /// CoreML has no runtime adapter-apply step — unlike the MLX backend,
+    /// which loads a LoRA on top of base weights in memory via
+    /// `MLXLanguageModel.load(_:adapter:)`. For CoreML the adapter is
+    /// **merged into the weights at conversion time**, producing a
+    /// standalone model bundle. To run a fine-tuned CoreML model, point
+    /// this method at that merged bundle — it loads exactly like any
+    /// other bundle. There is nothing extra to wire up on the PFM side.
     public static func load(
         localBundle directory: URL,
         identifier: String? = nil,
